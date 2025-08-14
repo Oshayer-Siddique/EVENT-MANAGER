@@ -6,12 +6,17 @@ import com.oshayer.event_manager.auth.service.AuthService;
 import com.oshayer.event_manager.users.entity.EnumUserRole;
 import com.oshayer.event_manager.users.entity.UserEntity;
 import com.oshayer.event_manager.users.repository.UserRepository;
+import com.oshayer.event_manager.notification.service.EmailService;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +27,7 @@ public class AuthServiceImpl implements AuthService {
     private final ModelMapper modelMapper;
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider jwtTokenProvider;
+    private final EmailService emailService;
 
     @Override
     public void signup(SignupRequest request) {
@@ -33,9 +39,14 @@ public class AuthServiceImpl implements AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setRole(EnumUserRole.ROLE_USER);
         user.setEmailVerified(false);
+
+        String token = UUID.randomUUID().toString();
+        user.setEmailVerificationToken(token);
+        user.setEmailVerificationExpiry(Instant.now().plus(24, ChronoUnit.HOURS));
+
         userRepository.save(user);
 
-        // TODO: Send email verification link with token
+        emailService.sendVerificationEmail(user.getEmail(), token);
     }
 
     @Override
@@ -56,6 +67,16 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void verifyEmail(String token) {
-        // TODO: decode token, find user, set emailVerified = true
+        UserEntity user = userRepository.findByEmailVerificationToken(token)
+                .orElseThrow(() -> new RuntimeException("Invalid verification token"));
+
+        if (user.getEmailVerificationExpiry().isBefore(Instant.now())) {
+            throw new RuntimeException("Verification token expired");
+        }
+
+        user.setEmailVerified(true);
+        user.setEmailVerificationToken(null);
+        user.setEmailVerificationExpiry(null);
+        userRepository.save(user);
     }
 }
