@@ -1,6 +1,5 @@
 package com.oshayer.event_manager.notification.service;
 
-
 import lombok.RequiredArgsConstructor;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -16,6 +15,18 @@ public class EmailService {
         String subject = "Verify your email";
         String verificationUrl = "http://localhost:5000/api/auth/verify?token=" + token;
         String body = "Click the link to verify your email: " + verificationUrl;
+
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(to);
+        message.setSubject(subject);
+        message.setText(body);
+        mailSender.send(message);
+    }
+
+    public void sendPasswordResetEmail(String to, String token) {
+        String subject = "Reset your password";
+        String resetUrl = "http://localhost:5000/api/auth/reset-password?token=" + token;
+        String body = "Click the link to reset your password: " + resetUrl;
 
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(to);

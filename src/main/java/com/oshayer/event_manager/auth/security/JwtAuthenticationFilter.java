@@ -30,14 +30,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = null;
         String email = null;
 
+
+
         if (header != null && header.startsWith("Bearer ")) {
             token = header.substring(7);
+            System.out.println("JWT token received: " + token);
+
             email = jwtTokenProvider.getEmailFromJwt(token);
+            System.out.println("Email from JWT: " + email);
+
         }
 
         if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             if (jwtTokenProvider.validateToken(token)) {
+                System.out.println("Token is valid. Loading user...");
+
                 var userDetails = customUserDetailsService.loadUserByUsername(email);
+                System.out.println("User found: " + userDetails.getUsername());
+                System.out.println("Authorities: " + userDetails.getAuthorities());
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                 authentication.setDetails(

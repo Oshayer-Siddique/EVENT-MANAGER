@@ -1,8 +1,6 @@
 package com.oshayer.event_manager.users.controller;
 
-import com.oshayer.event_manager.users.dto.UpdateUserRequest;
-import com.oshayer.event_manager.users.dto.OrgUserCreateRequest;
-import com.oshayer.event_manager.users.dto.UserResponse;
+import com.oshayer.event_manager.users.dto.*;
 import com.oshayer.event_manager.users.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -31,4 +29,21 @@ public class UserController {
     public ResponseEntity<UserResponse> createOrgUser(@RequestBody OrgUserCreateRequest request) {
         return ResponseEntity.ok(userService.orgAdminCreateUser(request));
     }
+
+
+    @PostMapping("/event-manager")
+    @PreAuthorize("hasRole('ROLE_ORG_ADMIN')")
+    public ResponseEntity<UserResponse> createEventManager(@RequestBody CreateEventManagerRequest request) {
+        return ResponseEntity.ok(userService.createEventManager(request));
+    }
+
+
+    @PostMapping("/operator")
+    @PreAuthorize("hasRole('ROLE_ORG_ADMIN')")
+    public ResponseEntity<UserResponse> createOperator(@RequestBody OperatorCreateRequest request) {
+        return ResponseEntity.ok(userService.createOperator(request));
+    }
+
+
+
 }

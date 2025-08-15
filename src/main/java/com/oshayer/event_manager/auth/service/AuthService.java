@@ -6,5 +6,10 @@ public interface AuthService {
     void signup(SignupRequest request);
     JwtResponse login(LoginRequest request);
     void verifyEmail(String token);
+    void changePassword(ChangePasswordRequest request);
+    void forgotPassword(ForgotPasswordRequest request);
+    void resetPassword(ResetPasswordRequest request);
+
+
 }
 

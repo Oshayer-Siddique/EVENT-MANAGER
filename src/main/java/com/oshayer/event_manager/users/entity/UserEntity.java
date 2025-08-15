@@ -56,6 +56,13 @@ public class UserEntity {
     @Column(name = "email_verification_expiry")
     private Instant emailVerificationExpiry;
 
+    @Column(name = "reset_password_token")
+    private String resetPasswordToken;
+
+    @Column(name = "reset_password_expiry")
+    private Instant resetPasswordExpiry;
+
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
