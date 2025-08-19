@@ -7,6 +7,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
@@ -19,10 +21,7 @@ public class UserController {
         return ResponseEntity.ok(userService.getCurrentUserProfile());
     }
 
-    @PutMapping("/me")
-    public ResponseEntity<UserResponse> updateProfile(@RequestBody UpdateUserRequest request) {
-        return ResponseEntity.ok(userService.updateProfile(request));
-    }
+
 
     @PostMapping("/org")
     @PreAuthorize("hasRole('ROLE_ORG_ADMIN')")
@@ -43,6 +42,27 @@ public class UserController {
     public ResponseEntity<UserResponse> createOperator(@RequestBody OperatorCreateRequest request) {
         return ResponseEntity.ok(userService.createOperator(request));
     }
+
+    @PutMapping("/me")
+    @PreAuthorize("hasRole('ROLE_USER')")
+    public ResponseEntity<UserResponse> updateProfile(@RequestBody UpdateUserRequest request) {
+        return ResponseEntity.ok(userService.updateProfile(request));
+    }
+
+
+    @GetMapping("/event-managers")
+    @PreAuthorize("hasRole('ROLE_ORG_ADMIN')")
+    public ResponseEntity<List<UserResponse>> getAllEventManagers() {
+        return ResponseEntity.ok(userService.getAllEventManagersInOrg());
+    }
+
+    @GetMapping("/operators")
+    @PreAuthorize("hasRole('ROLE_ORG_ADMIN')")
+    public ResponseEntity<List<UserResponse>> getAllOperators() {
+        return ResponseEntity.ok(userService.getAllOperatorsInOrg());
+    }
+
+
 
 
 

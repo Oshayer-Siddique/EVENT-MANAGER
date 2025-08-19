@@ -12,6 +12,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import com.oshayer.event_manager.auth.security.CustomUserDetails;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
@@ -33,10 +35,22 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserResponse updateProfile(UpdateUserRequest request) {
         UserEntity user = getCurrentAuthenticatedUser();
-        modelMapper.map(request, user);
+
+        // update only allowed fields
+        if (request.getPhone() != null) {
+            user.setPhone(request.getPhone());
+        }
+        if (request.getFullName() != null) {
+            user.setFullName(request.getFullName());
+        }
+        if (request.getImageUrl() != null) {
+            user.setImageUrl(request.getImageUrl());
+        }
+
         userRepository.save(user);
         return modelMapper.map(user, UserResponse.class);
     }
+
 
     @Override
     public UserResponse orgAdminCreateUser(OrgUserCreateRequest request) {
@@ -53,8 +67,15 @@ public class UserServiceImpl implements UserService {
     }
 
     private UserEntity getCurrentAuthenticatedUser() {
-        // TODO: Implement SecurityContext fetch
-        return null;
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+        if (principal instanceof CustomUserDetails customUserDetails) {
+            return customUserDetails.getUser();
+        } else {
+            String email = SecurityContextHolder.getContext().getAuthentication().getName();
+            return userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+        }
     }
 
 
@@ -117,6 +138,43 @@ public class UserServiceImpl implements UserService {
         userRepository.save(newUser);
         return modelMapper.map(newUser, UserResponse.class);
     }
+
+
+
+    @Override
+    public List<UserResponse> getAllEventManagersInOrg() {
+        UserEntity currentAdmin = getCurrentUserEntity();
+        if (currentAdmin == null) {
+            throw new RuntimeException("No authenticated user found");
+        }
+
+        List<UserEntity> managers = userRepository.findByOrganizationIdAndRole(
+                currentAdmin.getOrganization().getId(),
+                EnumUserRole.ROLE_EVENT_MANAGER
+        );
+
+        return managers.stream()
+                .map(user -> modelMapper.map(user, UserResponse.class))
+                .toList();
+    }
+
+    @Override
+    public List<UserResponse> getAllOperatorsInOrg() {
+        UserEntity currentAdmin = getCurrentUserEntity();
+        if (currentAdmin == null) {
+            throw new RuntimeException("No authenticated user found");
+        }
+
+        List<UserEntity> operators = userRepository.findByOrganizationIdAndRole(
+                currentAdmin.getOrganization().getId(),
+                EnumUserRole.ROLE_OPERATOR
+        );
+
+        return operators.stream()
+                .map(user -> modelMapper.map(user, UserResponse.class))
+                .toList();
+    }
+
 
 
 

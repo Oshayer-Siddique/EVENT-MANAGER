@@ -40,6 +40,9 @@ public class UserEntity {
     @Column(name = "full_name")
     private String fullName;
 
+    @Column(name = "username")
+    private String username;
+
     @Column(name = "image_url")
     private String imageUrl;
 
