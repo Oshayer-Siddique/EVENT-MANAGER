@@ -29,8 +29,39 @@ public class UserServiceImpl implements UserService {
         UserEntity user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        return modelMapper.map(user, UserResponse.class);
+        return UserResponse.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .firstName(user.getFirstName())
+                .middleName(user.getMiddleName())
+                .lastName(user.getLastName())
+                .fullName(user.getFullName())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .imageUrl(user.getImageUrl())
+                .address(user.getAddress())
+                .role(user.getRole())
+                .roleCode(user.getRoleCode())
+                .roleName(user.getRoleName())
+                .organizationId(user.getOrganization() != null ? user.getOrganization().getId() : null)
+                .organizationName(user.getOrganization() != null ? user.getOrganization().getName() : null)
+                .emailVerified(user.isEmailVerified())
+                .emailVerifiedAt(user.getEmailVerifiedAt())
+                .mobileVerified(user.isMobileVerified())
+                .mobileVerifiedAt(user.getMobileVerifiedAt())
+                .signupDate(user.getSignupDate())
+                .signupAt(user.getSignupAt())
+                .lastLoginAt(user.getLastLoginAt())
+                .lastLogoutAt(user.getLastLogoutAt())
+                .totalTicketCount(user.getTotalTicketCount())
+                .totalTicketPrice(user.getTotalTicketPrice())
+                .ticketsUsed(user.getTicketsUsed())
+                .ticketsAtHand(user.getTicketsAtHand())
+                .createdAt(user.getCreatedAt())
+                .updatedAt(user.getUpdatedAt())
+                .build();
     }
+
 
     @Override
     public UserResponse updateProfile(UpdateUserRequest request) {

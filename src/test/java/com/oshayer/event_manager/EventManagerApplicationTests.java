@@ -23,4 +23,12 @@ class EventManagerApplicationTests {
         boolean matches = passwordEncoder.matches("12345678", storedHash);
         System.out.println("Password matches? " + matches);
     }
+
+    @Test
+    void HelloFunction(){
+        System.out.println("Hello World!");
+        for(int i =1 ;i<=10;i++){
+            System.out.println(i);
+        }
+    }
 }

@@ -37,16 +37,22 @@ public class AuthServiceImpl implements AuthService {
             throw new RuntimeException("Email already in use");
         }
 
-        // Manually map values to avoid accidental overwrites
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw new RuntimeException("Username already in use");
+        }
+
         UserEntity user = new UserEntity();
-        user.setEmail(request.getEmail());
+        user.setUsername(request.getUsername());          // ✅ required
+        user.setFirstName(request.getFirstName());        // ✅ required
         user.setFullName(request.getFullName());
+        user.setEmail(request.getEmail());
         user.setPhone(request.getPhone());
+        user.setImageUrl(request.getImageUrl());
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setRole(EnumUserRole.ROLE_USER);
         user.setEmailVerified(false);
 
-        // Always set token and expiry last to avoid overwrites
+        // Generate token
         String token = UUID.randomUUID().toString();
         user.setEmailVerificationToken(token);
         user.setEmailVerificationExpiry(Instant.now().plus(24, ChronoUnit.HOURS));
@@ -55,6 +61,7 @@ public class AuthServiceImpl implements AuthService {
 
         emailService.sendVerificationEmail(user.getEmail(), token);
     }
+
 
 
     @Override
