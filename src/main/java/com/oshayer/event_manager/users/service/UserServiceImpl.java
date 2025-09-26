@@ -132,18 +132,58 @@ public class UserServiceImpl implements UserService {
             throw new RuntimeException("Admin email not verified");
         }
 
+        // Check if username or email already exists
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw new RuntimeException("Username already exists");
+        }
+
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new RuntimeException("Email already exists");
+        }
+
+        // Create new UserEntity
         UserEntity newUser = new UserEntity();
         newUser.setEmail(request.getEmail());
         newUser.setPhone(request.getPhone());
-        newUser.setFullName(request.getFullName());
+        newUser.setFirstName(request.getFirstName());
+        newUser.setLastName(request.getLastName());
+        newUser.setFullName(request.getFullName() != null
+                ? request.getFullName()
+                : request.getFirstName() + " " + request.getLastName());
+        newUser.setImageUrl(request.getImageUrl());
         newUser.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         newUser.setRole(EnumUserRole.ROLE_EVENT_MANAGER);
         newUser.setOrganization(currentAdmin.getOrganization());
         newUser.setEmailVerified(true);
+        newUser.setUsername(request.getUsername());
 
         userRepository.save(newUser);
-        return modelMapper.map(newUser, UserResponse.class);
+
+        // Manually map to UserResponse
+        UserResponse response = new UserResponse();
+        response.setId(newUser.getId());
+        response.setFirstName(newUser.getFirstName());
+        response.setLastName(newUser.getLastName());
+        response.setFullName(newUser.getFullName());
+        response.setEmail(newUser.getEmail());
+        response.setPhone(newUser.getPhone());
+//        response.setImageUrl(newUser.getImageUrl());
+        response.setUsername(newUser.getUsername());
+        response.setOrganizationId(newUser.getOrganization() != null
+                ? newUser.getOrganization().getId()
+                : null);
+
+        // Manually set role fields
+        if (newUser.getRole() != null) {
+            response.setRoleCode(newUser.getRole().getCode());
+            response.setRoleName(newUser.getRole().getDisplayName());
+        }
+
+        return response;
     }
+
+
+
 
 
     @Override
@@ -185,7 +225,21 @@ public class UserServiceImpl implements UserService {
         );
 
         return managers.stream()
-                .map(user -> modelMapper.map(user, UserResponse.class))
+                .map(user -> {
+                    UserResponse response = new UserResponse();
+                    response.setId(user.getId());
+                    response.setFirstName(user.getFirstName());
+                    response.setLastName(user.getLastName());
+                    response.setFullName(user.getFullName());
+                    response.setEmail(user.getEmail());
+                    response.setPhone(user.getPhone());
+                    response.setImageUrl(user.getImageUrl());
+                    response.setUsername(user.getUsername());
+                    response.setRoleCode(user.getRole().getCode());
+                    response.setRoleName(user.getRole().getDisplayName());
+                    response.setEmailVerified(user.isEmailVerified());
+                    return response;
+                })
                 .toList();
     }
 

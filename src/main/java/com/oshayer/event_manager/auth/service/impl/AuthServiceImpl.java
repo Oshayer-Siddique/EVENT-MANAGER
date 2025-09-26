@@ -43,11 +43,7 @@ public class AuthServiceImpl implements AuthService {
 
         UserEntity user = new UserEntity();
         user.setUsername(request.getUsername());          // ✅ required
-        user.setFirstName(request.getFirstName());        // ✅ required
-        user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
-        user.setPhone(request.getPhone());
-        user.setImageUrl(request.getImageUrl());
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setRole(EnumUserRole.ROLE_USER);
         user.setEmailVerified(false);

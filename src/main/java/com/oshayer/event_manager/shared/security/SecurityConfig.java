@@ -38,7 +38,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/test/**").permitAll()   // ✅ allow test endpoints
-
+                        .requestMatchers("/api/events", "/api/events/**").permitAll()// ✅ public GET
+                        .requestMatchers("/api/venues/**").permitAll()
+                        .requestMatchers("/api/seat-layouts/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
