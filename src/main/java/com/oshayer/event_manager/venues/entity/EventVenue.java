@@ -1,13 +1,13 @@
 package com.oshayer.event_manager.venues.entity;
 
-import com.oshayer.event_manager.seat.entity.SeatLayout;
 import jakarta.persistence.*;
 import lombok.*;
-import java.util.List;
-import java.util.UUID;
-
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import com.oshayer.event_manager.seat.entity.SeatLayout;
+
+import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "event_venues")
@@ -33,6 +33,11 @@ public class EventVenue {
     @Column(nullable = false, unique = true)
     private String venueName;
 
+    private String maxCapacity;
+    private String mapAddress;
+    private String socialMediaLink;
+    private String websiteLink;
+
     @Column(nullable = false)
     private String address;
 
@@ -45,18 +50,18 @@ public class EventVenue {
     @Column(nullable = false)
     private Integer liveEvents = 0;
 
-    @Column(nullable = false)
+    @Column(name = "events_upcoming", nullable = false)
     private Integer eventsUpcoming = 0;
 
     private String createdBy;
 
-    @CreationTimestamp   // ✅ Hibernate will auto-fill
+    @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private java.time.OffsetDateTime createdAt;
 
     private String editedBy;
 
-    @UpdateTimestamp    // ✅ Hibernate will auto-update
+    @UpdateTimestamp
     private java.time.OffsetDateTime editedAt;
 
     private String dataDigest;

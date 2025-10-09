@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.UUID;
 
 public interface SeatLayoutService {
-    SeatLayoutDTO createSeatLayout(SeatLayoutDTO dto);
+    SeatLayoutDTO createSeatLayout(UUID venueId, SeatLayoutDTO dto);
     SeatLayoutDTO getSeatLayout(UUID id);
     List<SeatLayoutDTO> getSeatLayoutsByVenue(UUID venueId);
     SeatLayoutDTO updateSeatLayout(UUID id, SeatLayoutDTO dto);

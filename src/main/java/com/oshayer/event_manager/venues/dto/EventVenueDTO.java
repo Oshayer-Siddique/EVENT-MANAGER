@@ -20,4 +20,10 @@ public class EventVenueDTO {
     private Integer totalEvents;
     private Integer liveEvents;
     private Integer eventsUpcoming;
+    private String maxCapacity;
+    private String mapAddress;
+    private String socialMediaLink;
+    private String websiteLink;
+
+
 }

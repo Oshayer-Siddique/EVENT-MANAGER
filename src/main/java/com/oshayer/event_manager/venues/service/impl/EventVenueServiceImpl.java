@@ -27,10 +27,15 @@ public class EventVenueServiceImpl implements EventVenueService {
                 .address(dto.getAddress())
                 .email(dto.getEmail())
                 .phone(dto.getPhone())
+                .maxCapacity(dto.getMaxCapacity())
+                .socialMediaLink(dto.getSocialMediaLink())
+                .websiteLink(dto.getWebsiteLink())
+                .mapAddress(dto.getMapAddress())
                 .totalEvents(dto.getTotalEvents())
                 .liveEvents(dto.getLiveEvents())
                 .eventsUpcoming(dto.getEventsUpcoming())
                 .build();
+
         venue = venueRepository.save(venue);
         dto.setId(venue.getId());
         return dto;
@@ -45,17 +50,26 @@ public class EventVenueServiceImpl implements EventVenueService {
 
     @Override
     public List<EventVenueDTO> getAllVenues() {
-        return venueRepository.findAll().stream().map(this::toDTO).collect(Collectors.toList());
+        return venueRepository.findAll().stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
     }
 
     @Override
     public EventVenueDTO updateVenue(UUID id, EventVenueDTO dto) {
-        EventVenue venue = venueRepository.findById(id).orElseThrow(() -> new RuntimeException("Venue not found"));
+        EventVenue venue = venueRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Venue not found"));
+
         venue.setVenueName(dto.getVenueName());
         venue.setVenueCode(dto.getVenueCode());
         venue.setAddress(dto.getAddress());
         venue.setEmail(dto.getEmail());
+        venue.setMaxCapacity(dto.getMaxCapacity());
+        venue.setSocialMediaLink(dto.getSocialMediaLink());
+        venue.setWebsiteLink(dto.getWebsiteLink());
+        venue.setMapAddress(dto.getMapAddress());
         venue.setPhone(dto.getPhone());
+
         venueRepository.save(venue);
         return toDTO(venue);
     }
@@ -75,6 +89,10 @@ public class EventVenueServiceImpl implements EventVenueService {
                 .address(venue.getAddress())
                 .email(venue.getEmail())
                 .phone(venue.getPhone())
+                .maxCapacity(venue.getMaxCapacity())
+                .socialMediaLink(venue.getSocialMediaLink())
+                .websiteLink(venue.getWebsiteLink())
+                .mapAddress(venue.getMapAddress())
                 .totalEvents(venue.getTotalEvents())
                 .liveEvents(venue.getLiveEvents())
                 .eventsUpcoming(venue.getEventsUpcoming())

@@ -4,6 +4,7 @@ import com.oshayer.event_manager.auth.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -29,18 +30,39 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
+    /**
+     * Chain 1: Public APIs — no authentication, no JWT filter
+     * This includes Venues, Seat Layouts, Events, Test, and Auth.
+     */
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    @Order(1)
+    public SecurityFilterChain openChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf.disable()) // ✅ New lambda style
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // ✅ New lambda style
+                // Apply only to these public routes
+                .securityMatcher(
+                        "/api/venues/**",
+                        "/api/seat-layouts/**",
+                        "/api/events/**",
+                        "/api/test/**",
+                        "/api/auth/**"
+                )
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+        // no JWT filter added here
+        return http.build();
+    }
+
+    /**
+     * Chain 2: Protected APIs — require JWT authentication
+     */
+    @Bean
+    @Order(2)
+    public SecurityFilterChain protectedChain(HttpSecurity http) throws Exception {
+        http
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/test/**").permitAll()   // ✅ allow test endpoints
-                        .requestMatchers("/api/events", "/api/events/**").permitAll()// ✅ public GET
-                        .requestMatchers("/api/venues/**").permitAll()
-                        .requestMatchers("/api/seat-layouts/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

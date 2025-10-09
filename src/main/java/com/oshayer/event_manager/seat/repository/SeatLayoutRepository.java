@@ -7,5 +7,6 @@ import java.util.List;
 import java.util.UUID;
 
 public interface SeatLayoutRepository extends JpaRepository<SeatLayout, UUID> {
-    List<SeatLayout> findByVenueId(UUID venueId);
+    List<SeatLayout> findByVenue_Id(UUID venueId);                  // <-- important
+    boolean existsByVenue_IdAndLayoutName(UUID venueId, String layoutName);
 }

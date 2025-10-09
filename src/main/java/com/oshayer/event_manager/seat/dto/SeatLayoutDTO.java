@@ -1,5 +1,6 @@
 package com.oshayer.event_manager.seat.dto;
 
+import jakarta.validation.constraints.*;
 import lombok.*;
 import java.util.UUID;
 
@@ -9,15 +10,22 @@ import java.util.UUID;
 @Builder
 public class SeatLayoutDTO {
     private UUID id;
-    private String typeCode;
-    private String typeName;
+
+    @NotBlank private String typeCode;
+    @NotBlank private String typeName;
+
+    // REMOVE @NotNull here because venueId comes from the path in /venues/{venueId}/layouts
     private UUID venueId;
-    private String layoutName;
-    private Integer totalRows;
-    private Integer totalCols;
-    private Integer totalTables;
-    private Integer chairsPerTable;
-    private Integer standingCapacity;
-    private Integer totalCapacity;
-    private Boolean isActive;
+
+    @NotBlank private String layoutName;
+
+    @PositiveOrZero private Integer totalRows;
+    @PositiveOrZero private Integer totalCols;
+    @PositiveOrZero private Integer totalTables;
+    @PositiveOrZero private Integer chairsPerTable;
+    @PositiveOrZero private Integer standingCapacity;
+
+    @NotNull @PositiveOrZero private Integer totalCapacity;
+    @NotNull private Boolean isActive;
 }
+
