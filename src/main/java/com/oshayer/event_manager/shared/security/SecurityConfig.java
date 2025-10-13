@@ -44,7 +44,10 @@ public class SecurityConfig {
                         "/api/seat-layouts/**",
                         "/api/events/**",
                         "/api/test/**",
-                        "/api/auth/**"
+                        "/api/auth/**",
+                        "/api/business-organizations/**",
+                        "/api/artists/**",
+                        "/api/sponsors/**"
                 )
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
