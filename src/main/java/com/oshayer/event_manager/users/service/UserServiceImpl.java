@@ -62,12 +62,10 @@ public class UserServiceImpl implements UserService {
                 .build();
     }
 
-
     @Override
     public UserResponse updateProfile(UpdateUserRequest request) {
         UserEntity user = getCurrentAuthenticatedUser();
 
-        // update only allowed fields
         if (request.getPhone() != null) {
             user.setPhone(request.getPhone());
         }
@@ -81,7 +79,6 @@ public class UserServiceImpl implements UserService {
         userRepository.save(user);
         return modelMapper.map(user, UserResponse.class);
     }
-
 
     @Override
     public UserResponse orgAdminCreateUser(OrgUserCreateRequest request) {
@@ -109,9 +106,6 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-
-
-
     private UserEntity getCurrentUserEntity() {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         if (principal instanceof CustomUserDetails customUserDetails) {
@@ -119,7 +113,6 @@ public class UserServiceImpl implements UserService {
         }
         return null;
     }
-
 
     @Override
     public UserResponse createEventManager(CreateEventManagerRequest request) {
@@ -132,16 +125,13 @@ public class UserServiceImpl implements UserService {
             throw new RuntimeException("Admin email not verified");
         }
 
-        // Check if username or email already exists
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new RuntimeException("Username already exists");
         }
-
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new RuntimeException("Email already exists");
         }
 
-        // Create new UserEntity
         UserEntity newUser = new UserEntity();
         newUser.setEmail(request.getEmail());
         newUser.setPhone(request.getPhone());
@@ -159,7 +149,6 @@ public class UserServiceImpl implements UserService {
 
         userRepository.save(newUser);
 
-        // Manually map to UserResponse
         UserResponse response = new UserResponse();
         response.setId(newUser.getId());
         response.setFirstName(newUser.getFirstName());
@@ -167,13 +156,11 @@ public class UserServiceImpl implements UserService {
         response.setFullName(newUser.getFullName());
         response.setEmail(newUser.getEmail());
         response.setPhone(newUser.getPhone());
-//        response.setImageUrl(newUser.getImageUrl());
         response.setUsername(newUser.getUsername());
         response.setOrganizationId(newUser.getOrganization() != null
                 ? newUser.getOrganization().getId()
                 : null);
 
-        // Manually set role fields
         if (newUser.getRole() != null) {
             response.setRoleCode(newUser.getRole().getCode());
             response.setRoleName(newUser.getRole().getDisplayName());
@@ -181,11 +168,6 @@ public class UserServiceImpl implements UserService {
 
         return response;
     }
-
-
-
-
-
 
     @Override
     public UserResponse createOperator(OperatorCreateRequest request) {
@@ -198,16 +180,13 @@ public class UserServiceImpl implements UserService {
             throw new RuntimeException("Admin email not verified");
         }
 
-        // Check if username or email already exists
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new RuntimeException("Username already exists");
         }
-
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new RuntimeException("Email already exists");
         }
 
-        // Create new UserEntity for Operator
         UserEntity newUser = new UserEntity();
         newUser.setEmail(request.getEmail());
         newUser.setPhone(request.getPhone());
@@ -218,14 +197,13 @@ public class UserServiceImpl implements UserService {
                 : request.getFirstName() + " " + request.getLastName());
         newUser.setImageUrl(request.getImageUrl());
         newUser.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        newUser.setRole(EnumUserRole.ROLE_OPERATOR); // 👈 Role changed here
+        newUser.setRole(EnumUserRole.ROLE_OPERATOR);
         newUser.setOrganization(currentAdmin.getOrganization());
         newUser.setEmailVerified(true);
         newUser.setUsername(request.getUsername());
 
         userRepository.save(newUser);
 
-        // Map to UserResponse
         UserResponse response = new UserResponse();
         response.setId(newUser.getId());
         response.setFirstName(newUser.getFirstName());
@@ -238,7 +216,6 @@ public class UserServiceImpl implements UserService {
                 ? newUser.getOrganization().getId()
                 : null);
 
-        // Set role fields
         if (newUser.getRole() != null) {
             response.setRoleCode(newUser.getRole().getCode());
             response.setRoleName(newUser.getRole().getDisplayName());
@@ -247,9 +224,61 @@ public class UserServiceImpl implements UserService {
         return response;
     }
 
+    // ----------------------- NEW: Create Event Checker -----------------------
+    @Override
+    public UserResponse createEventChecker(EventCheckerCreateRequest request) {
+        UserEntity currentAdmin = getCurrentUserEntity();
+        if (currentAdmin == null) {
+            throw new RuntimeException("No authenticated user found");
+        }
 
+        if (!currentAdmin.isEmailVerified()) {
+            throw new RuntimeException("Admin email not verified");
+        }
 
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw new RuntimeException("Username already exists");
+        }
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new RuntimeException("Email already exists");
+        }
 
+        UserEntity newUser = new UserEntity();
+        newUser.setEmail(request.getEmail());
+        newUser.setPhone(request.getPhone());
+        newUser.setFirstName(request.getFirstName());
+        newUser.setLastName(request.getLastName());
+        newUser.setFullName(request.getFullName() != null
+                ? request.getFullName()
+                : request.getFirstName() + " " + request.getLastName());
+        newUser.setImageUrl(request.getImageUrl());
+        newUser.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        newUser.setRole(EnumUserRole.ROLE_EVENT_CHECKER); // 👈 key role
+        newUser.setOrganization(currentAdmin.getOrganization());
+        newUser.setEmailVerified(true);
+        newUser.setUsername(request.getUsername());
+
+        userRepository.save(newUser);
+
+        UserResponse response = new UserResponse();
+        response.setId(newUser.getId());
+        response.setFirstName(newUser.getFirstName());
+        response.setLastName(newUser.getLastName());
+        response.setFullName(newUser.getFullName());
+        response.setEmail(newUser.getEmail());
+        response.setPhone(newUser.getPhone());
+        response.setUsername(newUser.getUsername());
+        response.setOrganizationId(newUser.getOrganization() != null
+                ? newUser.getOrganization().getId()
+                : null);
+
+        if (newUser.getRole() != null) {
+            response.setRoleCode(newUser.getRole().getCode());
+            response.setRoleName(newUser.getRole().getDisplayName());
+        }
+
+        return response;
+    }
 
     @Override
     public List<UserResponse> getAllEventManagersInOrg() {
@@ -319,9 +348,38 @@ public class UserServiceImpl implements UserService {
                 .toList();
     }
 
+    // ----------------------- NEW: List Event Checkers in Org -----------------
+    @Override
+    public List<UserResponse> getAllEventCheckersInOrg() {
+        UserEntity currentAdmin = getCurrentUserEntity();
+        if (currentAdmin == null) {
+            throw new RuntimeException("No authenticated user found");
+        }
 
+        List<UserEntity> checkers = userRepository.findByOrganizationIdAndRole(
+                currentAdmin.getOrganization().getId(),
+                EnumUserRole.ROLE_EVENT_CHECKER
+        );
 
-
-
-
+        return checkers.stream()
+                .map(user -> {
+                    UserResponse response = new UserResponse();
+                    response.setId(user.getId());
+                    response.setFirstName(user.getFirstName());
+                    response.setLastName(user.getLastName());
+                    response.setFullName(user.getFullName());
+                    response.setEmail(user.getEmail());
+                    response.setPhone(user.getPhone());
+                    response.setImageUrl(user.getImageUrl());
+                    response.setUsername(user.getUsername());
+                    response.setRoleCode(user.getRole().getCode());
+                    response.setRoleName(user.getRole().getDisplayName());
+                    response.setEmailVerified(user.isEmailVerified());
+                    response.setOrganizationId(user.getOrganization().getId());
+                    response.setOrganizationName(user.getOrganization().getName());
+                    response.setSignupDate(user.getSignupDate());
+                    return response;
+                })
+                .toList();
+    }
 }

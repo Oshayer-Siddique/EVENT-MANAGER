@@ -12,5 +12,7 @@ public interface UserService {
     UserResponse createOperator(OperatorCreateRequest request);
     List<UserResponse> getAllEventManagersInOrg();
     List<UserResponse> getAllOperatorsInOrg();
+    UserResponse createEventChecker(EventCheckerCreateRequest request);
+    List<UserResponse> getAllEventCheckersInOrg();
 
 }
