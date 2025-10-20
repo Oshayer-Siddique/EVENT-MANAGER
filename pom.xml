@@ -55,7 +55,7 @@
         <dependency>
             <groupId>org.modelmapper</groupId>
             <artifactId>modelmapper</artifactId>
-            <version>3.2.0</version> <!-- Or a later version, like 3.2.1 or 3.2.2 -->
+            <version>3.2.0</version>
         </dependency>
 
         <dependency>
