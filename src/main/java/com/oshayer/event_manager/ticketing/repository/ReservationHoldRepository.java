@@ -6,15 +6,17 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.time.OffsetDateTime;
-import java.util.*;
+import java.util.List;
+import java.util.UUID;
 
-public interface ReservationHoldRepository extends JpaRepository<ReservationHoldEntity, java.util.UUID> {
+public interface ReservationHoldRepository extends JpaRepository<ReservationHoldEntity, UUID> {
 
-    List<ReservationHoldEntity> findByEventIdAndStatus(java.util.UUID eventId, HoldStatus status);
+    List<ReservationHoldEntity> findByEvent_IdAndStatus(UUID eventId, HoldStatus status);
 
     @Query("""
         select h from ReservationHoldEntity h
-        where h.eventId = :eventId and h.status = 'ACTIVE' and h.expiresAt > :now
+        where h.event.id = :eventId and h.status = 'ACTIVE' and h.expiresAt > :now
     """)
-    List<ReservationHoldEntity> findActiveNotExpired(java.util.UUID eventId, OffsetDateTime now);
+    List<ReservationHoldEntity> findActiveNotExpired(UUID eventId, OffsetDateTime now);
 }
+

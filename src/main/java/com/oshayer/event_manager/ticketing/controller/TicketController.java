@@ -43,8 +43,18 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.get(ticketId));
     }
 
-    @GetMapping("/events/{eventId}")
-    public ResponseEntity<List<TicketResponse>> listByEvent(@PathVariable java.util.UUID eventId) {
-        return ResponseEntity.ok(ticketService.listByEvent(eventId));
+    @GetMapping
+    public ResponseEntity<List<TicketResponse>> listTickets(
+            @RequestParam(required = false) UUID eventId,
+            @RequestParam(required = false) UUID buyerId
+    ) {
+        if (eventId != null) {
+            return ResponseEntity.ok(ticketService.listByEvent(eventId));
+        }
+        if (buyerId != null) {
+            return ResponseEntity.ok(ticketService.listByBuyer(buyerId));
+        }
+        // Consider returning a 400 Bad Request if no filter is provided, or defaulting to all tickets if that's desired.
+        return ResponseEntity.ok(Collections.emptyList());
     }
 }

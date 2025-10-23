@@ -1,8 +1,12 @@
 package com.oshayer.event_manager.ticketing.dto;
 
-import jakarta.validation.constraints.*;
-import lombok.*;
-import java.math.BigDecimal;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -12,16 +16,14 @@ import java.util.UUID;
 @Builder
 public class TicketCreateRequest {
     @NotNull private UUID eventId;
+    @NotNull private UUID seatId; // The ID of the desired SeatEntity
     @NotNull private UUID buyerId;
-    @NotBlank private String tierCode; // VIP / PLAT / GOLD / SILVER
 
-    private UUID seatLayoutId; // optional
-    private String seatLabel;  // optional
+    // Optional reservation time for pending tickets
+    private OffsetDateTime reservedUntil;
 
-    @NotBlank private String currency;
-    @NotNull @DecimalMin("0.00") private BigDecimal price;
-
-    private OffsetDateTime reservedUntil; // optional direct reserve
+    // Optional holder info if different from buyer
     private String holderName;
     @Email private String holderEmail;
 }
+

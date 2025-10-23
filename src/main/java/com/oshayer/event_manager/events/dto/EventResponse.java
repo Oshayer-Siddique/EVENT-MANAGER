@@ -26,12 +26,12 @@ public class EventResponse {
     private UUID eventChecker1;
     private UUID eventChecker2;
 
-    private Integer vipTickets;    private BigDecimal vipTicketPrice;
-    private Integer platTickets;   private BigDecimal platTicketPrice;
-    private Integer goldTickets;   private BigDecimal goldTicketPrice;
-    private Integer silverTickets; private BigDecimal silverTicketPrice;
+    private List<UUID> organizerIds;
+    private List<String> imageUrls;
+
+    private List<EventTicketTierResponse> ticketTiers;
 
     private List<UUID> artistIds;
     private List<UUID> sponsorIds;
-    private List<UUID> organizerIds;
+
 }

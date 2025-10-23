@@ -30,21 +30,13 @@ public class UpdateEventRequest {
     private UUID eventChecker1;
     private UUID eventChecker2;
 
-    // Ticket tiers
-    @PositiveOrZero private Integer vipTickets;
-    @DecimalMin(value = "0.0", inclusive = true) private BigDecimal vipTicketPrice;
+    private List<UUID> organizerIds;
+    private List<String> imageUrls;
 
-    @PositiveOrZero private Integer platTickets;
-    @DecimalMin(value = "0.0", inclusive = true) private BigDecimal platTicketPrice;
-
-    @PositiveOrZero private Integer goldTickets;
-    @DecimalMin(value = "0.0", inclusive = true) private BigDecimal goldTicketPrice;
-
-    @PositiveOrZero private Integer silverTickets;
-    @DecimalMin(value = "0.0", inclusive = true) private BigDecimal silverTicketPrice;
+    private List<UpdateEventTicketTierRequest> ticketTiers;
 
     // Replace associations if present (null = don’t touch, empty list = clear)
     private List<UUID> artistIds;
     private List<UUID> sponsorIds;
-    private List<UUID> organizerIds;
+
 }

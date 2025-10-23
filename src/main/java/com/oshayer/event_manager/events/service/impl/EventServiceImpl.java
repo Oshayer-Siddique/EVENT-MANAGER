@@ -2,17 +2,9 @@ package com.oshayer.event_manager.events.service.impl;
 
 import com.oshayer.event_manager.artists.repository.ArtistRepository;
 import com.oshayer.event_manager.business_organizations.repository.BusinessOrganizationRepository;
-import com.oshayer.event_manager.events.dto.CreateEventRequest;
-import com.oshayer.event_manager.events.dto.EventResponse;
-import com.oshayer.event_manager.events.dto.UpdateEventRequest;
-import com.oshayer.event_manager.events.entity.EventArtistLink;
-import com.oshayer.event_manager.events.entity.EventEntity;
-import com.oshayer.event_manager.events.entity.EventOrganizerLink;
-import com.oshayer.event_manager.events.entity.EventSponsorLink;
-import com.oshayer.event_manager.events.repository.EventArtistLinkRepository;
-import com.oshayer.event_manager.events.repository.EventOrganizerLinkRepository;
-import com.oshayer.event_manager.events.repository.EventRepository;
-import com.oshayer.event_manager.events.repository.EventSponsorLinkRepository;
+import com.oshayer.event_manager.events.dto.*;
+import com.oshayer.event_manager.events.entity.*;
+import com.oshayer.event_manager.events.repository.*;
 import com.oshayer.event_manager.events.service.EventService;
 import com.oshayer.event_manager.seat.entity.SeatLayout;
 import com.oshayer.event_manager.seat.repository.SeatLayoutRepository;
@@ -30,6 +22,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -48,6 +41,7 @@ public class EventServiceImpl implements EventService {
 
     private final EventArtistLinkRepository eventArtistLinkRepo;
     private final EventSponsorLinkRepository eventSponsorLinkRepo;
+    private final EventTicketTierRepository eventTicketTierRepo;
     private final EventOrganizerLinkRepository eventOrganizerLinkRepo;
 
     // ===========================
@@ -91,22 +85,27 @@ public class EventServiceImpl implements EventService {
         ensureOneOfRoles(req.getEventChecker1(), EnumUserRole.ROLE_OPERATOR, EnumUserRole.ROLE_EVENT_CHECKER);
         if (req.getEventChecker2() != null) ensureOneOfRoles(req.getEventChecker2(), EnumUserRole.ROLE_OPERATOR, EnumUserRole.ROLE_EVENT_CHECKER);
 
-        // 6) Ticket totals & price sanity
-        int totalTickets = sumNZ(req.getVipTickets(), req.getPlatTickets(), req.getGoldTickets(), req.getSilverTickets());
+        // 6) Ticket totals & price sanity (using new EventTicketTier)
+        if (req.getTicketTiers() == null || req.getTicketTiers().isEmpty()) {
+            throw new IllegalArgumentException("At least one ticket tier must be provided.");
+        }
+        int totalTickets = req.getTicketTiers().stream()
+                .mapToInt(CreateEventTicketTierRequest::getTotalQuantity)
+                .sum();
         if (capacity != null && totalTickets > capacity) {
             throw new IllegalArgumentException("Total tickets (" + totalTickets + ") exceed seat layout capacity (" + capacity + ")");
         }
-        requirePriceIfQty(req.getVipTickets(), req.getVipTicketPrice(), "VIP");
-        requirePriceIfQty(req.getPlatTickets(), req.getPlatTicketPrice(), "PLAT");
-        requirePriceIfQty(req.getGoldTickets(), req.getGoldTicketPrice(), "GOLD");
-        requirePriceIfQty(req.getSilverTickets(), req.getSilverTicketPrice(), "SILVER");
+        req.getTicketTiers().forEach(tier -> {
+            if (tier.getTotalQuantity() <= 0) throw new IllegalArgumentException("Ticket tier quantity must be positive.");
+            if (tier.getPrice().compareTo(BigDecimal.ZERO) < 0) throw new IllegalArgumentException("Ticket tier price must be non-negative.");
+        });
 
         // 7) Optional associations existence (de-dup + check)
         List<UUID> artistIds    = ensureExistence(req.getArtistIds(),    artistRepo::existsById, "Artist");
         List<UUID> sponsorIds   = ensureExistence(req.getSponsorIds(),   sponsorRepo::existsById, "Sponsor");
         List<UUID> organizerIds = ensureExistence(req.getOrganizerIds(), orgRepo::existsById,     "BusinessOrganization");
 
-        // 8) Map DTO -> Entity (BigDecimal in DTO and Entity)
+        // 8) Map DTO -> Entity
         EventEntity e = EventEntity.builder()
                 .typeCode(req.getTypeCode())
                 .typeName(req.getTypeName())
@@ -120,14 +119,7 @@ public class EventServiceImpl implements EventService {
                 .eventOperator2(req.getEventOperator2())
                 .eventChecker1(req.getEventChecker1())
                 .eventChecker2(req.getEventChecker2())
-                .vipTickets(req.getVipTickets())           .vipTicketPrice(req.getVipTicketPrice())
-                .vipTicketsSold(0)                         .vipTicketsUsed(0)
-                .platTickets(req.getPlatTickets())         .platTicketPrice(req.getPlatTicketPrice())
-                .platTicketsSold(0)                        .platTicketsUsed(0)
-                .goldTickets(req.getGoldTickets())         .goldTicketPrice(req.getGoldTicketPrice())
-                .goldTicketsSold(0)                        .goldTicketsUsed(0)
-                .silverTickets(req.getSilverTickets())     .silverTicketPrice(req.getSilverTicketPrice())
-                .silverTicketsSold(0)                      .silverTicketsUsed(0)
+                .imageUrls(req.getImageUrls())
                 .build();
 
         // set seatLayoutId if the field exists (keeps compatibility if not yet added)
@@ -136,9 +128,20 @@ public class EventServiceImpl implements EventService {
         // 9) Save event
         e = eventRepo.save(e);
 
-        // 10) Save optional association links (capture id once for lambdas)
+        // 10) Save EventTicketTiers
         final var eventId = e.getId();
+        List<EventTicketTier> tiers = req.getTicketTiers().stream()
+                .map(tierReq -> EventTicketTier.builder()
+                        .eventId(eventId)
+                        .tierCode(tierReq.getTierCode())
+                        .tierName(tierReq.getTierName())
+                        .totalQuantity(tierReq.getTotalQuantity())
+                        .price(tierReq.getPrice())
+                        .build())
+                .toList();
+        eventTicketTierRepo.saveAll(tiers);
 
+        // 11) Save optional association links (capture id once for lambdas)
         if (!artistIds.isEmpty()) {
             var links = artistIds.stream()
                     .map(id -> EventArtistLink.builder().eventId(eventId).artistId(id).build())
@@ -158,8 +161,8 @@ public class EventServiceImpl implements EventService {
             eventOrganizerLinkRepo.saveAll(links);
         }
 
-        // 11) Build response
-        return toResponse(e, artistIds, sponsorIds, organizerIds, seatLayoutId);
+        // 12) Build response
+        return toResponse(e, artistIds, sponsorIds, organizerIds, seatLayoutId, tiers);
     }
 
     // ===========================
@@ -186,8 +189,10 @@ public class EventServiceImpl implements EventService {
                 .map(EventOrganizerLink::getOrgId)
                 .toList();
 
+        var ticketTiers = eventTicketTierRepo.findByEventId(id);
+
         UUID seatLayoutId = getSeatLayoutIdIfPresent(e);
-        return toResponse(e, artistIds, sponsorIds, organizerIds, seatLayoutId);
+        return toResponse(e, artistIds, sponsorIds, organizerIds, seatLayoutId, ticketTiers);
     }
 
     // ===========================
@@ -196,15 +201,13 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public Page<EventResponse> list(Pageable pageable) {
-        return eventRepo.findAll(pageable).map(ev ->
-                toResponse(ev,
-                        // lazy-load link ids only when needed (simple approach)
-                        eventArtistLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(ev.getId())).map(EventArtistLink::getArtistId).toList(),
-                        eventSponsorLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(ev.getId())).map(EventSponsorLink::getSponsorId).toList(),
-                        eventOrganizerLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(ev.getId())).map(EventOrganizerLink::getOrgId).toList(),
-                        getSeatLayoutIdIfPresent(ev)
-                )
-        );
+        return eventRepo.findAll(pageable).map(ev -> {
+            var artistIds = eventArtistLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(ev.getId())).map(EventArtistLink::getArtistId).toList();
+            var sponsorIds = eventSponsorLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(ev.getId())).map(EventSponsorLink::getSponsorId).toList();
+            var organizerIds = eventOrganizerLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(ev.getId())).map(EventOrganizerLink::getOrgId).toList();
+            var ticketTiers = eventTicketTierRepo.findByEventId(ev.getId());
+            return toResponse(ev, artistIds, sponsorIds, organizerIds, getSeatLayoutIdIfPresent(ev), ticketTiers);
+        });
     }
 
     // ===========================
@@ -263,26 +266,47 @@ public class EventServiceImpl implements EventService {
         if (req.getEventChecker2() != null)   { ensureOneOfRoles(req.getEventChecker2(), EnumUserRole.ROLE_OPERATOR, EnumUserRole.ROLE_EVENT_CHECKER); e.setEventChecker2(req.getEventChecker2()); }
 
         // tickets/prices (replace only if provided)
-        if (req.getVipTickets() != null)        e.setVipTickets(req.getVipTickets());
-        if (req.getVipTicketPrice() != null)    e.setVipTicketPrice(req.getVipTicketPrice());
-        if (req.getPlatTickets() != null)       e.setPlatTickets(req.getPlatTickets());
-        if (req.getPlatTicketPrice() != null)   e.setPlatTicketPrice(req.getPlatTicketPrice());
-        if (req.getGoldTickets() != null)       e.setGoldTickets(req.getGoldTickets());
-        if (req.getGoldTicketPrice() != null)   e.setGoldTicketPrice(req.getGoldTicketPrice());
-        if (req.getSilverTickets() != null)     e.setSilverTickets(req.getSilverTickets());
-        if (req.getSilverTicketPrice() != null) e.setSilverTicketPrice(req.getSilverTicketPrice());
+        if (req.getTicketTiers() != null) {
+            // Fetch existing tiers
+            List<EventTicketTier> existingTiers = eventTicketTierRepo.findByEventId(id);
+            Map<String, EventTicketTier> existingTiersMap = existingTiers.stream()
+                    .collect(Collectors.toMap(EventTicketTier::getTierCode, Function.identity()));
 
-        // capacity check if known
-        if (capacity != null) {
-            int total = nz(e.getVipTickets()) + nz(e.getPlatTickets()) + nz(e.getGoldTickets()) + nz(e.getSilverTickets());
-            if (total > capacity) throw new IllegalArgumentException("Total tickets (" + total + ") exceed capacity (" + capacity + ")");
+            List<EventTicketTier> tiersToSave = new ArrayList<>();
+            List<EventTicketTier> tiersToDelete = new ArrayList<>();
+
+            // Process incoming tiers
+            for (UpdateEventTicketTierRequest tierReq : req.getTicketTiers()) {
+                EventTicketTier existingTier = existingTiersMap.remove(tierReq.getTierCode());
+                if (existingTier != null) {
+                    // Update existing tier
+                    if (tierReq.getTierName() != null) existingTier.setTierName(tierReq.getTierName());
+                    if (tierReq.getTotalQuantity() != null) existingTier.setTotalQuantity(tierReq.getTotalQuantity());
+                    if (tierReq.getPrice() != null) existingTier.setPrice(tierReq.getPrice());
+                    tiersToSave.add(existingTier);
+                } else {
+                    // Create new tier
+                    tiersToSave.add(EventTicketTier.builder()
+                            .eventId(id)
+                            .tierCode(tierReq.getTierCode())
+                            .tierName(tierReq.getTierName())
+                            .totalQuantity(tierReq.getTotalQuantity())
+                            .price(tierReq.getPrice())
+                            .build());
+                }
+            }
+            // Remaining tiers in existingTiersMap are to be deleted
+            tiersToDelete.addAll(existingTiersMap.values());
+
+            eventTicketTierRepo.deleteAll(tiersToDelete);
+            eventTicketTierRepo.saveAll(tiersToSave);
+
+            // Re-calculate capacity check if tiers were updated
+            int total = tiersToSave.stream().mapToInt(EventTicketTier::getTotalQuantity).sum();
+            if (capacity != null && total > capacity) {
+                throw new IllegalArgumentException("Total tickets (" + total + ") exceed capacity (" + capacity + ")");
+            }
         }
-
-        // price sanity
-        requirePriceIfQty(e.getVipTickets(),    e.getVipTicketPrice(),    "VIP");
-        requirePriceIfQty(e.getPlatTickets(),   e.getPlatTicketPrice(),   "PLAT");
-        requirePriceIfQty(e.getGoldTickets(),   e.getGoldTicketPrice(),   "GOLD");
-        requirePriceIfQty(e.getSilverTickets(), e.getSilverTicketPrice(), "SILVER");
 
         // Save event first (for id/version)
         e = eventRepo.save(e);
@@ -315,13 +339,19 @@ public class EventServiceImpl implements EventService {
             }
         }
 
+        // Update image URLs if provided
+        if (req.getImageUrls() != null) {
+            e.setImageUrls(req.getImageUrls());
+        }
+
         // Build final response
         var artistIds = eventArtistLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(eventId)).map(EventArtistLink::getArtistId).toList();
         var sponsorIds = eventSponsorLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(eventId)).map(EventSponsorLink::getSponsorId).toList();
         var organizerIds = eventOrganizerLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(eventId)).map(EventOrganizerLink::getOrgId).toList();
+        var ticketTiers = eventTicketTierRepo.findByEventId(eventId);
         UUID seatLayoutId = getSeatLayoutIdIfPresent(e);
 
-        return toResponse(e, artistIds, sponsorIds, organizerIds, seatLayoutId);
+        return toResponse(e, artistIds, sponsorIds, organizerIds, seatLayoutId, ticketTiers);
     }
 
     // ===========================
@@ -339,6 +369,7 @@ public class EventServiceImpl implements EventService {
         eventArtistLinkRepo.deleteAll(a);
         eventSponsorLinkRepo.deleteAll(s);
         eventOrganizerLinkRepo.deleteAll(o);
+        eventTicketTierRepo.deleteAllByEventId(id);
 
         eventRepo.deleteById(id);
     }
@@ -347,6 +378,8 @@ public class EventServiceImpl implements EventService {
     // Helpers
     // ===========================
 
+    // De-dup the list, verify each id exists via the provided existsFn, or throw.
+// Returns the unique ids in insertion order.
     // De-dup the list, verify each id exists via the provided existsFn, or throw.
 // Returns the unique ids in insertion order.
     private List<UUID> ensureExistence(List<UUID> ids,
@@ -381,18 +414,6 @@ public class EventServiceImpl implements EventService {
         }
     }
 
-    private int sumNZ(Integer... vals) {
-        int s = 0; for (Integer v : vals) s += (v == null ? 0 : v); return s;
-    }
-
-    private int nz(Integer v){ return v==null?0:v; }
-
-    private void requirePriceIfQty(Integer qty, BigDecimal price, String label) {
-        if (qty != null && qty > 0 && (price == null || price.signum() < 0)) {
-            throw new IllegalArgumentException(label + " price must be provided and >= 0 when quantity > 0");
-        }
-    }
-
     private void setIfPresent(Object target, String fieldName, Object value) {
         if (value == null) return;
         try {
@@ -417,7 +438,8 @@ public class EventServiceImpl implements EventService {
                                      List<UUID> artistIds,
                                      List<UUID> sponsorIds,
                                      List<UUID> organizerIds,
-                                     UUID seatLayoutId) {
+                                     UUID seatLayoutId,
+                                     List<EventTicketTier> ticketTiers) {
         return EventResponse.builder()
                 .id(e.getId())
                 .typeCode(e.getTypeCode())
@@ -433,13 +455,21 @@ public class EventServiceImpl implements EventService {
                 .eventOperator2(e.getEventOperator2())
                 .eventChecker1(e.getEventChecker1())
                 .eventChecker2(e.getEventChecker2())
-                .vipTickets(e.getVipTickets())     .vipTicketPrice(e.getVipTicketPrice())
-                .platTickets(e.getPlatTickets())   .platTicketPrice(e.getPlatTicketPrice())
-                .goldTickets(e.getGoldTickets())   .goldTicketPrice(e.getGoldTicketPrice())
-                .silverTickets(e.getSilverTickets()).silverTicketPrice(e.getSilverTicketPrice())
                 .artistIds(artistIds)
                 .sponsorIds(sponsorIds)
                 .organizerIds(organizerIds)
+                .imageUrls(e.getImageUrls())
+                .ticketTiers(ticketTiers.stream()
+                        .map(tier -> EventTicketTierResponse.builder()
+                                .id(tier.getId())
+                                .tierCode(tier.getTierCode())
+                                .tierName(tier.getTierName())
+                                .totalQuantity(tier.getTotalQuantity())
+                                .price(tier.getPrice())
+                                .soldQuantity(tier.getSoldQuantity())
+                                .usedQuantity(tier.getUsedQuantity())
+                                .build())
+                        .toList())
                 .build();
     }
 }

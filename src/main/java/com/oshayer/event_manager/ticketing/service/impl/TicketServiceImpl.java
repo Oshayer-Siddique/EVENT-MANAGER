@@ -1,19 +1,25 @@
 package com.oshayer.event_manager.ticketing.service.impl;
 
-import com.oshayer.event_manager.events.entity.EventEntity;
-import com.oshayer.event_manager.events.repository.EventRepository;
-import com.oshayer.event_manager.ticketing.dto.*;
+import com.oshayer.event_manager.events.entity.EventSeatEntity;
+import com.oshayer.event_manager.events.entity.EventSeatEntity.EventSeatStatus;
+import com.oshayer.event_manager.events.repository.EventSeatRepository;
+import com.oshayer.event_manager.ticketing.dto.TicketCheckInRequest;
+import com.oshayer.event_manager.ticketing.dto.TicketCreateRequest;
+import com.oshayer.event_manager.ticketing.dto.TicketRefundRequest;
+import com.oshayer.event_manager.ticketing.dto.TicketResponse;
 import com.oshayer.event_manager.ticketing.entity.TicketEntity;
 import com.oshayer.event_manager.ticketing.entity.TicketEntity.TicketStatus;
 import com.oshayer.event_manager.ticketing.repository.TicketRepository;
 import com.oshayer.event_manager.ticketing.service.TicketService;
+import com.oshayer.event_manager.users.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
-import java.util.*;
+import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -21,39 +27,35 @@ import java.util.*;
 public class TicketServiceImpl implements TicketService {
 
     private final TicketRepository ticketRepository;
-    private final EventRepository eventRepository;
-
-    private static final Set<TicketStatus> SOLD_STATUSES = EnumSet.of(
-            TicketStatus.PENDING, TicketStatus.ISSUED, TicketStatus.USED, TicketStatus.REFUNDED
-    );
+    private final EventSeatRepository eventSeatRepository;
+    private final UserRepository userRepository;
 
     @Override
     public TicketResponse createPending(TicketCreateRequest req) {
-        EventEntity event = eventRepository.findById(req.getEventId())
-                .orElseThrow(() -> new EntityNotFoundException("Event not found"));
+        // 1. Find the requested EventSeat
+        EventSeatEntity eventSeat = eventSeatRepository.findByEventIdAndSeatId(req.getEventId(), req.getSeatId())
+                .orElseThrow(() -> new EntityNotFoundException("Event seat not found"));
 
-        // seat conflict check (if seatLabel provided)
-        if (req.getSeatLabel() != null && !req.getSeatLabel().isBlank()) {
-            boolean seatTaken = ticketRepository.existsByEventIdAndSeatLabelAndStatusIn(
-                    req.getEventId(), req.getSeatLabel(), SOLD_STATUSES);
-            if (seatTaken) throw new IllegalStateException("Seat already taken for this event");
+        // 2. Check if it's available
+        if (eventSeat.getStatus() != EventSeatStatus.AVAILABLE) {
+            throw new IllegalStateException("Seat " + eventSeat.getSeat().getLabel() + " is not available");
         }
 
-        // capacity guard
-        assertCapacityAvailable(event, req.getTierCode(), 1);
+        // 3. Find the buyer
+        var buyer = userRepository.findById(req.getBuyerId())
+                .orElseThrow(() -> new EntityNotFoundException("Buyer not found"));
 
-        // tokens
+        // 4. Mark the seat as reserved
+        eventSeat.setStatus(EventSeatStatus.RESERVED);
+        eventSeatRepository.save(eventSeat);
+
+        // 5. Create the ticket
         String qr = UUID.randomUUID().toString();
         String shortCode = UUID.randomUUID().toString().replace("-", "").substring(0, 10).toUpperCase();
 
         TicketEntity t = TicketEntity.builder()
-                .eventId(req.getEventId())
-                .buyerId(req.getBuyerId())
-                .seatLayoutId(req.getSeatLayoutId())
-                .seatLabel(req.getSeatLabel())
-                .tierCode(req.getTierCode().trim().toUpperCase())
-                .currency(req.getCurrency())
-                .price(req.getPrice())
+                .eventSeat(eventSeat)
+                .buyer(buyer)
                 .status(TicketStatus.PENDING)
                 .reservedUntil(req.getReservedUntil())
                 .holderName(req.getHolderName())
@@ -74,10 +76,14 @@ public class TicketServiceImpl implements TicketService {
             throw new IllegalStateException("Only PENDING tickets can be issued");
         if (t.getReservedUntil() != null && t.getReservedUntil().isBefore(OffsetDateTime.now())) {
             t.setStatus(TicketStatus.EXPIRED);
+            // Revert the seat status to AVAILABLE
+            t.getEventSeat().setStatus(EventSeatStatus.AVAILABLE);
             return toResponse(t);
         }
         t.setStatus(TicketStatus.ISSUED);
         t.setIssuedAt(OffsetDateTime.now());
+        // Mark the seat as permanently SOLD
+        t.getEventSeat().setStatus(EventSeatStatus.SOLD);
         return toResponse(t);
     }
 
@@ -87,9 +93,13 @@ public class TicketServiceImpl implements TicketService {
                 .orElseThrow(() -> new EntityNotFoundException("Ticket not found"));
         if (t.getStatus() != TicketStatus.ISSUED)
             throw new IllegalStateException("Only ISSUED tickets can be checked in");
+
+        var checker = userRepository.findById(req.getCheckerId())
+                .orElseThrow(() -> new EntityNotFoundException("Checker not found"));
+
         t.setStatus(TicketStatus.USED);
         t.setCheckedInAt(OffsetDateTime.now());
-        t.setCheckerId(req.getCheckerId());
+        t.setChecker(checker);
         t.setGate(req.getGate());
         return toResponse(t);
     }
@@ -104,9 +114,12 @@ public class TicketServiceImpl implements TicketService {
             default -> throw new IllegalStateException("Ticket not refundable in status: " + t.getStatus());
         }
 
+        // Business Decision: When a ticket is refunded, the seat should become available again.
+        t.getEventSeat().setStatus(EventSeatStatus.AVAILABLE);
+
         t.setStatus(TicketStatus.REFUNDED);
         t.setRefundAmount(req.getRefundAmount());
-        t.setRefundedAt(OffsetDateTime.now()); // ✅ correct version
+        t.setRefundedAt(OffsetDateTime.now());
 
         return toResponse(t);
     }
@@ -123,45 +136,36 @@ public class TicketServiceImpl implements TicketService {
     @Override
     @Transactional(readOnly = true)
     public List<TicketResponse> listByEvent(UUID eventId) {
-        return ticketRepository.findByEventId(eventId).stream().map(this::toResponse).toList();
+        return ticketRepository.findByEventSeat_Event_Id(eventId).stream().map(this::toResponse).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TicketResponse> listByBuyer(UUID buyerId) {
+        return ticketRepository.findByBuyer_Id(buyerId).stream().map(this::toResponse).toList();
     }
 
     // -------- helpers --------
-    private void assertCapacityAvailable(EventEntity event, String tierCode, int qty) {
-        String upper = tierCode == null ? null : tierCode.trim().toUpperCase();
-        int capacity;
-        switch (upper) {
-            case "VIP" -> capacity = n(event.getVipTickets());
-            case "PLAT", "PLATINUM" -> capacity = n(event.getPlatTickets());
-            case "GOLD" -> capacity = n(event.getGoldTickets());
-            case "SILVER" -> capacity = n(event.getSilverTickets());
-            default -> throw new IllegalArgumentException("Unknown tierCode: " + tierCode);
-        }
-        long sold = ticketRepository.countByEventIdAndTierCodeAndStatusIn(event.getId(), upper, SOLD_STATUSES);
-        if (sold + qty > capacity) {
-            throw new IllegalStateException("Capacity exceeded for tier " + upper + ": " + (sold + qty) + "/" + capacity);
-        }
-    }
-
-    private int n(Integer x) { return x == null ? 0 : x; }
 
     private TicketResponse toResponse(TicketEntity t) {
+        EventSeatEntity es = t.getEventSeat();
         return TicketResponse.builder()
                 .id(t.getId())
-                .eventId(t.getEventId())
-                .buyerId(t.getBuyerId())
-                .seatLayoutId(t.getSeatLayoutId())
-                .seatLabel(t.getSeatLabel())
-                .tierCode(t.getTierCode())
-                .currency(t.getCurrency())
-                .price(t.getPrice())
                 .status(t.getStatus().name())
+                // Flattened data from related entities
+                .eventId(es.getEvent().getId())
+                .buyerId(t.getBuyer().getId())
+                .seatId(es.getSeat().getId())
+                .seatLabel(es.getSeat().getLabel())
+                .tierCode(es.getTierCode())
+                .price(es.getPrice())
+                // Core ticket info
                 .qrCode(t.getQrCode())
                 .verificationCode(t.getVerificationCode())
                 .holderName(t.getHolderName())
                 .holderEmail(t.getHolderEmail())
                 .gate(t.getGate())
-                .checkerId(t.getCheckerId())
+                .checkerId(t.getChecker() != null ? t.getChecker().getId() : null)
                 .reservedUntil(t.getReservedUntil())
                 .issuedAt(t.getIssuedAt())
                 .checkedInAt(t.getCheckedInAt())
@@ -172,3 +176,4 @@ public class TicketServiceImpl implements TicketService {
                 .build();
     }
 }
+

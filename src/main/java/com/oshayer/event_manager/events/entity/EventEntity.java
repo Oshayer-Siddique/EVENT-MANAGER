@@ -7,6 +7,8 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.ZonedDateTime; // If your project uses OffsetDateTime elsewhere, switch for consistency.
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -73,62 +75,8 @@ public class EventEntity {
     @Column(name = "event_checker2")
     private UUID eventChecker2;
 
-    // Ticket tiers (use BigDecimal for currency)
-    @Column(name = "vip_tickets")
-    private Integer vipTickets;
-
-    @Column(name = "vip_ticket_price", precision = 12, scale = 2)
-    private BigDecimal vipTicketPrice;
-
-    @Builder.Default
-    @Column(name = "vip_tickets_sold", nullable = false)
-    private Integer vipTicketsSold = 0;
-
-    @Builder.Default
-    @Column(name = "vip_tickets_used", nullable = false)
-    private Integer vipTicketsUsed = 0;
-
-    @Column(name = "plat_tickets")
-    private Integer platTickets;
-
-    @Column(name = "plat_ticket_price", precision = 12, scale = 2)
-    private BigDecimal platTicketPrice;
-
-    @Builder.Default
-    @Column(name = "plat_tickets_sold", nullable = false)
-    private Integer platTicketsSold = 0;
-
-    @Builder.Default
-    @Column(name = "plat_tickets_used", nullable = false)
-    private Integer platTicketsUsed = 0;
-
-    @Column(name = "gold_tickets")
-    private Integer goldTickets;
-
-    @Column(name = "gold_ticket_price", precision = 12, scale = 2)
-    private BigDecimal goldTicketPrice;
-
-    @Builder.Default
-    @Column(name = "gold_tickets_sold", nullable = false)
-    private Integer goldTicketsSold = 0;
-
-    @Builder.Default
-    @Column(name = "gold_tickets_used", nullable = false)
-    private Integer goldTicketsUsed = 0;
-
-    @Column(name = "silver_tickets")
-    private Integer silverTickets;
-
-    @Column(name = "silver_ticket_price", precision = 12, scale = 2)
-    private BigDecimal silverTicketPrice;
-
-    @Builder.Default
-    @Column(name = "silver_tickets_sold", nullable = false)
-    private Integer silverTicketsSold = 0;
-
-    @Builder.Default
-    @Column(name = "silver_tickets_used", nullable = false)
-    private Integer silverTicketsUsed = 0;
+    @OneToMany(mappedBy = "eventId", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<EventTicketTier> ticketTiers = new ArrayList<>();
 
     // Audit
     @CreationTimestamp
@@ -147,4 +95,9 @@ public class EventEntity {
     @Column(name = "version", nullable = false)
     @Builder.Default
     private Long version = 0L;
+
+    @ElementCollection
+    @CollectionTable(name = "event_images", joinColumns = @JoinColumn(name = "event_id"))
+    @Column(name = "image_url")
+    private List<String> imageUrls = new ArrayList<>();
 }

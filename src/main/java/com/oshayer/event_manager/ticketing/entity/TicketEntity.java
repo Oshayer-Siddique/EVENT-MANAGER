@@ -1,5 +1,7 @@
 package com.oshayer.event_manager.ticketing.entity;
 
+import com.oshayer.event_manager.events.entity.EventSeatEntity;
+import com.oshayer.event_manager.users.entity.UserEntity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -14,39 +16,27 @@ import java.util.UUID;
 @Table(
         name = "tickets",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_ticket_qr_code", columnNames = "qr_code"),
-                // one seat per event; NULL allowed for GA
-                @UniqueConstraint(name = "uk_ticket_event_seat", columnNames = {"event_id","seat_label"})
+                @UniqueConstraint(name = "uk_ticket_qr_code", columnNames = "qr_code")
+                // The OneToOne relationship to event_seat_id now guarantees uniqueness per seat per event.
         },
         indexes = {
-                @Index(name = "idx_ticket_event", columnList = "event_id"),
                 @Index(name = "idx_ticket_buyer", columnList = "buyer_id"),
-                @Index(name = "idx_ticket_status", columnList = "status"),
-                @Index(name = "idx_ticket_tier", columnList = "tier_code")
+                @Index(name = "idx_ticket_status", columnList = "status")
         }
 )
 public class TicketEntity {
 
     @Id @GeneratedValue private UUID id;
 
-    // links (UUIDs to your existing tables)
-    @Column(name = "event_id", nullable = false) private UUID eventId;    // EventEntity.id
-    @Column(name = "buyer_id", nullable = false) private UUID buyerId;    // UserEntity.id
-    @Column(name = "seat_layout_id") private UUID seatLayoutId;           // SeatLayout.id (nullable)
+    // This is the core link. A ticket IS the sale of a specific EventSeat.
+    // The unique=true constraint on JoinColumn enforces the OneToOne relationship at the DB level.
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_seat_id", nullable = false, unique = true)
+    private EventSeatEntity eventSeat;
 
-    // tier
-    @Column(name = "tier_code", nullable = false, length = 20)
-    private String tierCode;  // VIP / PLAT / GOLD / SILVER
-
-    // optional seat mapping
-    @Column(name = "seat_label")
-    private String seatLabel; // e.g., "A-10"; null for GA
-
-    // money snapshot
-    @Column(name = "currency", length = 10, nullable = false)
-    private String currency = "BDT";
-    @Column(name = "price", precision = 12, scale = 2, nullable = false)
-    private BigDecimal price;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "buyer_id", nullable = false)
+    private UserEntity buyer;
 
     // lifecycle
     @Enumerated(EnumType.STRING)
@@ -66,7 +56,11 @@ public class TicketEntity {
     // holder / staff
     @Column(name = "holder_name") private String holderName;
     @Column(name = "holder_email") private String holderEmail;
-    @Column(name = "checker_id") private UUID checkerId;   // UserEntity.id
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "checker_id")
+    private UserEntity checker;
+
     @Column(name = "gate") private String gate;
 
     // refunds
@@ -82,8 +76,7 @@ public class TicketEntity {
     private OffsetDateTime updatedAt;
     @Version @Column(nullable = false) private Long version = 0L;
 
-    public void setRefunedAt(OffsetDateTime now) {
-    }
+    // Note: The buggy `setRefunedAt` method has been removed.
 
     public enum TicketStatus { PENDING, ISSUED, USED, CANCELED, EXPIRED, REFUNDED }
 }

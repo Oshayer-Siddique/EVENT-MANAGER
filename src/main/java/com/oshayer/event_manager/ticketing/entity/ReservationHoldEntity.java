@@ -1,11 +1,15 @@
 package com.oshayer.event_manager.ticketing.entity;
 
+import com.oshayer.event_manager.events.entity.EventEntity;
+import com.oshayer.event_manager.events.entity.EventSeatEntity;
+import com.oshayer.event_manager.users.entity.UserEntity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
@@ -23,22 +27,26 @@ public class ReservationHoldEntity {
 
     @Id @GeneratedValue private UUID id;
 
-    @Column(name = "event_id", nullable = false) private UUID eventId; // EventEntity.id
-    @Column(name = "buyer_id") private UUID buyerId;                   // UserEntity.id (nullable for guest)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_id", nullable = false)
+    private EventEntity event;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "buyer_id") // nullable for guest
+    private UserEntity buyer;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private HoldStatus status = HoldStatus.ACTIVE;
 
-    /**
-     * jsonb content example:
-     * [
-     *   {"tierCode":"VIP","qty":2},
-     *   {"tierCode":"GOLD","seatLayoutId":"<uuid>","seats":["A-10","A-11"]}
-     * ]
-     */
-    @Column(name = "items_json", columnDefinition = "jsonb", nullable = false)
-    private String itemsJson;
+    // A hold now consists of a list of specific event seats
+    @OneToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(
+            name = "reservation_hold_seats",
+            joinColumns = @JoinColumn(name = "hold_id"),
+            inverseJoinColumns = @JoinColumn(name = "event_seat_id")
+    )
+    private List<EventSeatEntity> heldSeats;
 
     @Column(name = "expires_at", nullable = false)
     private OffsetDateTime expiresAt;
@@ -53,3 +61,4 @@ public class ReservationHoldEntity {
 
     public enum HoldStatus { ACTIVE, CONVERTED, RELEASED, EXPIRED }
 }
+
