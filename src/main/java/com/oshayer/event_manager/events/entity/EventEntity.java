@@ -44,6 +44,12 @@ public class EventEntity {
     @Column(name = "event_name", nullable = false)
     private String eventName;
 
+    @Column(name = "event_description", columnDefinition = "text")
+    private String eventDescription;
+
+    @Column(name = "privacy_policy", columnDefinition = "text")
+    private String privacyPolicy;
+
     // Schedule
     @Column(name = "event_start", nullable = false)
     private ZonedDateTime eventStart;

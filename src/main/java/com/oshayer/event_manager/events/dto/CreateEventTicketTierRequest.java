@@ -17,4 +17,6 @@ public class CreateEventTicketTierRequest {
     @NotBlank private String tierName;
     @NotNull @PositiveOrZero private Integer totalQuantity;
     @NotNull @DecimalMin(value = "0.0", inclusive = true) private BigDecimal price;
+    @NotNull @DecimalMin(value = "0.0", inclusive = true) private BigDecimal cost;
+    @Builder.Default private Boolean visible = Boolean.TRUE;
 }

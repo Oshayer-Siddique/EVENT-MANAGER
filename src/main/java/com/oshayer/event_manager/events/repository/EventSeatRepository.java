@@ -4,6 +4,7 @@ import com.oshayer.event_manager.events.entity.EventSeatEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,4 +21,10 @@ public interface EventSeatRepository extends JpaRepository<EventSeatEntity, UUID
     """)
     Optional<EventSeatEntity> findByEventIdAndSeatId(UUID eventId, UUID seatId);
 
+    @Query("""
+        select es from EventSeatEntity es
+        join fetch es.seat s
+        where es.event.id = :eventId
+    """)
+    List<EventSeatEntity> findByEventId(UUID eventId);
 }

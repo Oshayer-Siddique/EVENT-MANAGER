@@ -62,6 +62,7 @@ public class ReservationHoldServiceImpl implements ReservationHoldService {
                 .event(event)
                 .status(HoldStatus.ACTIVE)
                 .heldSeats(seatsToHold)
+                .itemsJson(buildItemsJson(seatsToHold))
                 .expiresAt(req.getExpiresAt());
 
         if (req.getBuyerId() != null) {
@@ -146,5 +147,19 @@ public class ReservationHoldServiceImpl implements ReservationHoldService {
                 .updatedAt(h.getUpdatedAt())
                 .build();
     }
-}
 
+    private String buildItemsJson(List<EventSeatEntity> seats) {
+        return seats.stream()
+                .map(es -> "{" +
+                        "\"seatId\":\"" + es.getId() + "\"," +
+                        "\"seatLabel\":\"" + escapeJson(es.getSeat().getLabel()) + "\"," +
+                        "\"tierCode\":\"" + escapeJson(es.getTierCode()) + "\"" +
+                        "}")
+                .collect(Collectors.joining(",", "[", "]"));
+    }
+
+    private String escapeJson(String value) {
+        if (value == null) return "";
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+}

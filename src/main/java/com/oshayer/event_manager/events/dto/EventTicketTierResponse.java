@@ -15,6 +15,8 @@ public class EventTicketTierResponse {
     private String tierName;
     private Integer totalQuantity;
     private BigDecimal price;
+    private BigDecimal cost;
+    private Boolean visible;
     private Integer soldQuantity;
     private Integer usedQuantity;
 }

@@ -2,7 +2,6 @@ package com.oshayer.event_manager.events.dto;
 
 import jakarta.validation.constraints.*;
 import lombok.*;
-import java.math.BigDecimal;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -17,6 +16,9 @@ public class CreateEventRequest {
     @NotBlank private String eventName;
     @NotNull private ZonedDateTime eventStart;
     @NotNull private ZonedDateTime eventEnd;
+
+    private String eventDescription;
+    private String privacyPolicy;
 
     // Venue & layout
     @NotNull private UUID venueId;

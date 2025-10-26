@@ -17,4 +17,6 @@ public class UpdateEventTicketTierRequest {
     private String tierName;
     @PositiveOrZero private Integer totalQuantity;
     @DecimalMin(value = "0.0", inclusive = true) private BigDecimal price;
+    @DecimalMin(value = "0.0", inclusive = true) private BigDecimal cost;
+    private Boolean visible;
 }

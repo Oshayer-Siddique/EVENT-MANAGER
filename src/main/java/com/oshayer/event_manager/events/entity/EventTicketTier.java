@@ -40,6 +40,14 @@ public class EventTicketTier {
     @Column(name = "price", nullable = false, precision = 12, scale = 2)
     private BigDecimal price;
 
+    @Column(name = "cost", nullable = false, precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal cost = BigDecimal.ZERO;
+
+    @Column(name = "visible", nullable = false)
+    @Builder.Default
+    private Boolean visible = Boolean.TRUE;
+
     @Builder.Default
     @Column(name = "sold_quantity", nullable = false)
     private Integer soldQuantity = 0;

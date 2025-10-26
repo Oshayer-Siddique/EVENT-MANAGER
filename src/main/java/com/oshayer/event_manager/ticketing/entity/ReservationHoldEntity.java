@@ -48,6 +48,9 @@ public class ReservationHoldEntity {
     )
     private List<EventSeatEntity> heldSeats;
 
+    @Column(name = "items_json", nullable = false)
+    private String itemsJson;
+
     @Column(name = "expires_at", nullable = false)
     private OffsetDateTime expiresAt;
 
@@ -61,4 +64,3 @@ public class ReservationHoldEntity {
 
     public enum HoldStatus { ACTIVE, CONVERTED, RELEASED, EXPIRED }
 }
-

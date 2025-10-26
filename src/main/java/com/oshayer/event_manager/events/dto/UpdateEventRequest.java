@@ -1,9 +1,6 @@
 package com.oshayer.event_manager.events.dto;
 
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.PositiveOrZero;
 import lombok.*;
-import java.math.BigDecimal;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -15,6 +12,8 @@ public class UpdateEventRequest {
     private String typeName;
     private String eventCode;   // unique if provided
     private String eventName;
+    private String eventDescription;
+    private String privacyPolicy;
 
     private ZonedDateTime eventStart;
     private ZonedDateTime eventEnd;
