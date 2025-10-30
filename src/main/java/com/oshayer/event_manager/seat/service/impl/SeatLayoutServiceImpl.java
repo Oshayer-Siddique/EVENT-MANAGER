@@ -69,10 +69,36 @@ public class SeatLayoutServiceImpl implements SeatLayoutService {
     public SeatLayoutDTO updateSeatLayout(UUID id, SeatLayoutDTO dto) {
         SeatLayout layout = seatLayoutRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Seat layout not found: " + id));
+        return applyUpdates(layout, dto);
+    }
 
-        // if name is changed, enforce per-venue uniqueness
+    @Override
+    public SeatLayoutDTO updateSeatLayout(UUID venueId, UUID layoutId, SeatLayoutDTO dto) {
+        SeatLayout layout = seatLayoutRepository.findByIdAndVenue_Id(layoutId, venueId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Seat layout not found for venue %s with id %s".formatted(venueId, layoutId)));
+
+        return applyUpdates(layout, dto);
+    }
+
+    @Override
+    public void deleteSeatLayout(UUID id) {
+        seatLayoutRepository.deleteById(id);
+    }
+
+    @Override
+    public void deleteSeatLayout(UUID venueId, UUID layoutId) {
+        SeatLayout layout = seatLayoutRepository.findByIdAndVenue_Id(layoutId, venueId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Seat layout not found for venue %s with id %s".formatted(venueId, layoutId)));
+        seatLayoutRepository.delete(layout);
+    }
+
+    private SeatLayoutDTO applyUpdates(SeatLayout layout, SeatLayoutDTO dto) {
+        UUID venueId = layout.getVenue().getId();
+
         if (!Objects.equals(layout.getLayoutName(), dto.getLayoutName()) &&
-                seatLayoutRepository.existsByVenue_IdAndLayoutName(layout.getVenue().getId(), dto.getLayoutName())) {
+                seatLayoutRepository.existsByVenue_IdAndLayoutName(venueId, dto.getLayoutName())) {
             throw new IllegalStateException("Layout name already exists for this venue");
         }
 
@@ -88,11 +114,6 @@ public class SeatLayoutServiceImpl implements SeatLayoutService {
         layout.setIsActive(dto.getIsActive());
 
         return toDTO(seatLayoutRepository.save(layout));
-    }
-
-    @Override
-    public void deleteSeatLayout(UUID id) {
-        seatLayoutRepository.deleteById(id);
     }
 
     private SeatLayoutDTO toDTO(SeatLayout layout) {

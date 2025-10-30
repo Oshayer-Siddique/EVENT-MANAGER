@@ -7,6 +7,7 @@ import com.oshayer.event_manager.events.entity.*;
 import com.oshayer.event_manager.events.repository.*;
 import com.oshayer.event_manager.events.service.EventService;
 import com.oshayer.event_manager.seat.entity.SeatLayout;
+import com.oshayer.event_manager.seat.entity.SeatEntity;
 import com.oshayer.event_manager.seat.repository.SeatLayoutRepository;
 import com.oshayer.event_manager.seat.repository.SeatRepository;
 import com.oshayer.event_manager.sponsors.repository.SponsorRepository;
@@ -245,6 +246,56 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public EventSeatMapResponse getSeatMap(UUID id) {
+        var event = eventRepo.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Event not found: " + id));
+
+        UUID layoutId = getSeatLayoutIdIfPresent(event);
+        if (layoutId == null) {
+            throw new IllegalStateException("Event does not have a seat layout assigned.");
+        }
+
+        var layout = seatLayoutRepo.findById(layoutId)
+                .orElseThrow(() -> new IllegalArgumentException("Seat layout not found: " + layoutId));
+
+        var layoutSeats = seatRepository.findBySeatLayout_IdOrderByRowAscNumberAsc(layoutId);
+        var eventSeats = eventSeatRepo.findByEventId(id);
+
+        var eventSeatsBySeatId = eventSeats.stream()
+                .collect(Collectors.toMap(es -> es.getSeat().getId(), Function.identity()));
+
+        List<EventSeatMapSeat> seats = layoutSeats.stream()
+                .map(seat -> {
+                    var eventSeat = eventSeatsBySeatId.get(seat.getId());
+                    return new EventSeatMapSeat(
+                            seat.getId(),
+                            eventSeat != null ? eventSeat.getId() : null,
+                            seat.getRow(),
+                            seat.getNumber(),
+                            seat.getLabel(),
+                            seat.getType(),
+                            eventSeat != null ? eventSeat.getTierCode() : null,
+                            eventSeat != null ? eventSeat.getPrice() : null,
+                            eventSeat != null ? eventSeat.getStatus() : EventSeatEntity.EventSeatStatus.AVAILABLE
+                    );
+                })
+                .toList();
+
+        List<EventTicketTierResponse> tiers = eventTicketTierRepo.findByEventId(id).stream()
+                .map(this::toTicketTierResponse)
+                .toList();
+
+        return new EventSeatMapResponse(
+                event.getId(),
+                layout.getId(),
+                toSeatLayoutSummary(layout),
+                tiers,
+                seats
+        );
+    }
+
+    @Override
     @Transactional
     public List<EventSeatResponse> syncSeatInventory(UUID id, SeatInventorySyncRequest request) {
         SeatInventorySyncRequest options = request != null ? request : SeatInventorySyncRequest.builder().build();
@@ -295,6 +346,80 @@ public class EventServiceImpl implements EventService {
 
         if (removeMissing && !existingBySeatId.isEmpty()) {
             eventSeatRepo.deleteAll(existingBySeatId.values());
+        }
+
+        return eventSeatRepo.findByEventId(id).stream()
+                .map(this::toSeatResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public List<EventSeatResponse> updateSeatAssignments(UUID id, SeatAssignmentUpdateRequest request) {
+        if (request == null || request.seats() == null || request.seats().isEmpty()) {
+            return listSeats(id);
+        }
+
+        var event = eventRepo.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Event not found: " + id));
+
+        UUID layoutId = getSeatLayoutIdIfPresent(event);
+        if (layoutId == null) {
+            throw new IllegalStateException("Cannot assign seats because event has no seat layout.");
+        }
+
+        seatLayoutRepo.findById(layoutId)
+                .orElseThrow(() -> new IllegalArgumentException("Seat layout not found: " + layoutId));
+
+        var seatsById = seatRepository.findBySeatLayout_IdOrderByRowAscNumberAsc(layoutId).stream()
+                .collect(Collectors.toMap(SeatEntity::getId, Function.identity()));
+
+        var tiersByCode = eventTicketTierRepo.findByEventId(id).stream()
+                .collect(Collectors.toMap(EventTicketTier::getTierCode, Function.identity()));
+
+        for (SeatAssignmentUpdateRequest.SeatAssignment assignment : request.seats()) {
+            EventSeatEntity eventSeat = null;
+            UUID seatId = assignment.seatId();
+
+            if (assignment.eventSeatId() != null) {
+                eventSeat = eventSeatRepo.findById(assignment.eventSeatId())
+                        .orElseThrow(() -> new IllegalArgumentException("Event seat not found: " + assignment.eventSeatId()));
+
+                if (!eventSeat.getEvent().getId().equals(id)) {
+                    throw new IllegalArgumentException("Seat does not belong to this event: " + assignment.eventSeatId());
+                }
+
+                seatId = eventSeat.getSeat().getId();
+            }
+
+            if (seatId == null) {
+                throw new IllegalArgumentException("seatId must be provided when eventSeatId is not supplied.");
+            }
+
+            SeatEntity seatEntity = seatsById.get(seatId);
+            if (seatEntity == null) {
+                throw new IllegalArgumentException("Seat does not belong to the event layout: " + seatId);
+            }
+
+            var tier = tiersByCode.get(assignment.tierCode());
+            if (tier == null) {
+                throw new IllegalArgumentException("Unknown ticket tier for this event: " + assignment.tierCode());
+            }
+
+            BigDecimal price = assignment.price() != null ? assignment.price() : tier.getPrice();
+
+            if (eventSeat == null) {
+                eventSeat = eventSeatRepo.findByEventIdAndSeatId(id, seatId)
+                        .orElseGet(() -> EventSeatEntity.builder()
+                                .event(event)
+                                .seat(seatEntity)
+                                .status(EventSeatEntity.EventSeatStatus.AVAILABLE)
+                                .build());
+            }
+
+            eventSeat.setTierCode(tier.getTierCode());
+            eventSeat.setPrice(price);
+            eventSeatRepo.save(eventSeat);
         }
 
         return eventSeatRepo.findByEventId(id).stream()

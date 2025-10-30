@@ -33,6 +33,24 @@ public class SeatLayoutController {
         return ResponseEntity.ok(seatLayoutService.getSeatLayoutsByVenue(venueId));
     }
 
+    @PutMapping("/venues/{venueId}/layouts/{layoutId}")
+    public ResponseEntity<SeatLayoutDTO> updateForVenue(
+            @PathVariable UUID venueId,
+            @PathVariable UUID layoutId,
+            @Valid @RequestBody SeatLayoutDTO dto) {
+        dto.setId(layoutId);
+        dto.setVenueId(venueId);
+        return ResponseEntity.ok(seatLayoutService.updateSeatLayout(venueId, layoutId, dto));
+    }
+
+    @DeleteMapping("/venues/{venueId}/layouts/{layoutId}")
+    public ResponseEntity<Void> deleteForVenue(
+            @PathVariable UUID venueId,
+            @PathVariable UUID layoutId) {
+        seatLayoutService.deleteSeatLayout(venueId, layoutId);
+        return ResponseEntity.noContent().build();
+    }
+
     // -------- id-scoped routes (generic) --------
 
     @GetMapping("/seat-layouts/{id}")

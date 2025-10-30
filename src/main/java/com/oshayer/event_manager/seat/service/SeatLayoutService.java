@@ -10,5 +10,7 @@ public interface SeatLayoutService {
     SeatLayoutDTO getSeatLayout(UUID id);
     List<SeatLayoutDTO> getSeatLayoutsByVenue(UUID venueId);
     SeatLayoutDTO updateSeatLayout(UUID id, SeatLayoutDTO dto);
+    SeatLayoutDTO updateSeatLayout(UUID venueId, UUID layoutId, SeatLayoutDTO dto);
     void deleteSeatLayout(UUID id);
+    void deleteSeatLayout(UUID venueId, UUID layoutId);
 }

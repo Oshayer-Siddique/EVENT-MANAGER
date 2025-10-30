@@ -2,8 +2,10 @@ package com.oshayer.event_manager.events.controller;
 
 import com.oshayer.event_manager.events.dto.CreateEventRequest;
 import com.oshayer.event_manager.events.dto.EventResponse;
+import com.oshayer.event_manager.events.dto.EventSeatMapResponse;
 import com.oshayer.event_manager.events.dto.EventSeatResponse;
 import com.oshayer.event_manager.events.dto.EventTicketDetailsResponse;
+import com.oshayer.event_manager.events.dto.SeatAssignmentUpdateRequest;
 import com.oshayer.event_manager.events.dto.SeatInventorySyncRequest;
 import com.oshayer.event_manager.events.dto.UpdateEventRequest;
 import com.oshayer.event_manager.events.service.EventService;
@@ -46,11 +48,23 @@ public class EventController {
         return ResponseEntity.ok(eventService.listSeats(id));
     }
 
+    @GetMapping("/{id}/seat-map")
+    public ResponseEntity<EventSeatMapResponse> getSeatMap(@PathVariable UUID id) {
+        return ResponseEntity.ok(eventService.getSeatMap(id));
+    }
+
     @PostMapping("/{id}/seats/sync")
     public ResponseEntity<List<EventSeatResponse>> syncSeatInventory(
             @PathVariable UUID id,
             @Valid @RequestBody SeatInventorySyncRequest request) {
         return ResponseEntity.ok(eventService.syncSeatInventory(id, request));
+    }
+
+    @PutMapping("/{id}/seats/assignments")
+    public ResponseEntity<List<EventSeatResponse>> updateSeatAssignments(
+            @PathVariable UUID id,
+            @Valid @RequestBody SeatAssignmentUpdateRequest request) {
+        return ResponseEntity.ok(eventService.updateSeatAssignments(id, request));
     }
 
     // Tickets + assets
