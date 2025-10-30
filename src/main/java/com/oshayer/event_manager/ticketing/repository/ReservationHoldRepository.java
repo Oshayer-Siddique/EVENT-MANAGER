@@ -3,6 +3,7 @@ package com.oshayer.event_manager.ticketing.repository;
 import com.oshayer.event_manager.ticketing.entity.ReservationHoldEntity;
 import com.oshayer.event_manager.ticketing.entity.ReservationHoldEntity.HoldStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import java.time.OffsetDateTime;
@@ -13,10 +14,14 @@ public interface ReservationHoldRepository extends JpaRepository<ReservationHold
 
     List<ReservationHoldEntity> findByEvent_IdAndStatus(UUID eventId, HoldStatus status);
 
+    List<ReservationHoldEntity> findByEvent_Id(UUID eventId);
+
+    @Modifying
+    void deleteAllByEvent_Id(UUID eventId);
+
     @Query("""
         select h from ReservationHoldEntity h
         where h.event.id = :eventId and h.status = 'ACTIVE' and h.expiresAt > :now
     """)
     List<ReservationHoldEntity> findActiveNotExpired(UUID eventId, OffsetDateTime now);
 }
-

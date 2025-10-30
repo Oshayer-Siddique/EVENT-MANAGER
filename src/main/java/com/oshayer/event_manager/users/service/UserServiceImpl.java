@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import com.oshayer.event_manager.auth.security.CustomUserDetails;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -112,6 +113,32 @@ public class UserServiceImpl implements UserService {
             return customUserDetails.getUser();
         }
         return null;
+    }
+
+    private void deleteOrgUserByRole(UUID userId, EnumUserRole expectedRole) {
+        UserEntity currentAdmin = getCurrentUserEntity();
+        if (currentAdmin == null) {
+            throw new RuntimeException("No authenticated user found");
+        }
+
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+
+        if (user.getId().equals(currentAdmin.getId())) {
+            throw new IllegalArgumentException("You cannot delete yourself.");
+        }
+
+        if (user.getOrganization() == null
+                || currentAdmin.getOrganization() == null
+                || !user.getOrganization().getId().equals(currentAdmin.getOrganization().getId())) {
+            throw new IllegalArgumentException("User does not belong to your organization.");
+        }
+
+        if (user.getRole() != expectedRole) {
+            throw new IllegalArgumentException("User role mismatch. Expected " + expectedRole.name());
+        }
+
+        userRepository.delete(user);
     }
 
     @Override
@@ -381,5 +408,20 @@ public class UserServiceImpl implements UserService {
                     return response;
                 })
                 .toList();
+    }
+
+    @Override
+    public void deleteEventManager(UUID userId) {
+        deleteOrgUserByRole(userId, EnumUserRole.ROLE_EVENT_MANAGER);
+    }
+
+    @Override
+    public void deleteOperator(UUID userId) {
+        deleteOrgUserByRole(userId, EnumUserRole.ROLE_OPERATOR);
+    }
+
+    @Override
+    public void deleteEventChecker(UUID userId) {
+        deleteOrgUserByRole(userId, EnumUserRole.ROLE_EVENT_CHECKER);
     }
 }

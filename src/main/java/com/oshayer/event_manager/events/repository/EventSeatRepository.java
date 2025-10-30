@@ -2,6 +2,7 @@ package com.oshayer.event_manager.events.repository;
 
 import com.oshayer.event_manager.events.entity.EventSeatEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
@@ -27,4 +28,7 @@ public interface EventSeatRepository extends JpaRepository<EventSeatEntity, UUID
         where es.event.id = :eventId
     """)
     List<EventSeatEntity> findByEventId(UUID eventId);
+
+    @Modifying
+    void deleteAllByEvent_Id(UUID eventId);
 }

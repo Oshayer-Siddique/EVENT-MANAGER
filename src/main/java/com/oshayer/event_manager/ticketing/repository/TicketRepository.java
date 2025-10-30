@@ -2,6 +2,7 @@ package com.oshayer.event_manager.ticketing.repository;
 
 import com.oshayer.event_manager.ticketing.entity.TicketEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 
 import java.util.List;
 import java.util.Optional;
@@ -17,10 +18,12 @@ public interface TicketRepository extends JpaRepository<TicketEntity, UUID> {
      */
     List<TicketEntity> findByEventSeat_Event_Id(UUID eventId);
 
+    @Modifying
+    void deleteAllByEventSeat_Event_Id(UUID eventId);
+
     /**
      * Finds all tickets for a given buyer by their ID.
      */
     List<TicketEntity> findByBuyer_Id(UUID buyerId);
 
 }
-

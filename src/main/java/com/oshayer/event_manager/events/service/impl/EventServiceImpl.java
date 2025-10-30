@@ -11,6 +11,8 @@ import com.oshayer.event_manager.seat.entity.SeatEntity;
 import com.oshayer.event_manager.seat.repository.SeatLayoutRepository;
 import com.oshayer.event_manager.seat.repository.SeatRepository;
 import com.oshayer.event_manager.sponsors.repository.SponsorRepository;
+import com.oshayer.event_manager.ticketing.repository.ReservationHoldRepository;
+import com.oshayer.event_manager.ticketing.repository.TicketRepository;
 import com.oshayer.event_manager.users.entity.EnumUserRole;
 import com.oshayer.event_manager.users.entity.UserEntity;
 import com.oshayer.event_manager.users.repository.UserRepository;
@@ -48,6 +50,8 @@ public class EventServiceImpl implements EventService {
     private final EventTicketTierRepository eventTicketTierRepo;
     private final EventOrganizerLinkRepository eventOrganizerLinkRepo;
     private final EventSeatRepository eventSeatRepo;
+    private final TicketRepository ticketRepository;
+    private final ReservationHoldRepository reservationHoldRepository;
 
     // ===========================
     // CREATE
@@ -695,6 +699,10 @@ public class EventServiceImpl implements EventService {
         eventSponsorLinkRepo.deleteAll(s);
         eventOrganizerLinkRepo.deleteAll(o);
         eventTicketTierRepo.deleteAllByEventId(id);
+
+        ticketRepository.deleteAllByEventSeat_Event_Id(id);
+        reservationHoldRepository.deleteAllByEvent_Id(id);
+        eventSeatRepo.deleteAllByEvent_Id(id);
 
         eventRepo.delete(event);
         refreshVenueStats(venueId);
