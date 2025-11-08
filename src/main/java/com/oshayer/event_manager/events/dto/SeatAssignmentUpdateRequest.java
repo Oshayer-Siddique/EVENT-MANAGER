@@ -1,5 +1,6 @@
 package com.oshayer.event_manager.events.dto;
 
+import com.oshayer.event_manager.events.entity.EventSeatEntity;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -16,7 +17,8 @@ public record SeatAssignmentUpdateRequest(
             UUID eventSeatId,
             UUID seatId,
             @NotBlank String tierCode,
-            BigDecimal price
+            BigDecimal price,
+            EventSeatEntity.EventSeatStatus status
     ) {
     }
 }

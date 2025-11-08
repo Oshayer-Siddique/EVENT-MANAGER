@@ -423,6 +423,29 @@ public class EventServiceImpl implements EventService {
 
             eventSeat.setTierCode(tier.getTierCode());
             eventSeat.setPrice(price);
+
+            if (assignment.status() != null) {
+                var requestedStatus = assignment.status();
+                if (requestedStatus == EventSeatEntity.EventSeatStatus.RESERVED
+                        || requestedStatus == EventSeatEntity.EventSeatStatus.SOLD) {
+                    throw new IllegalArgumentException("Seat status can only be set to AVAILABLE or BLOCKED via this endpoint.");
+                }
+
+                if (eventSeat.getStatus() == EventSeatEntity.EventSeatStatus.SOLD) {
+                    throw new IllegalStateException("Cannot modify a seat that has already been sold.");
+                }
+
+                if (eventSeat.getStatus() == EventSeatEntity.EventSeatStatus.RESERVED
+                        && requestedStatus == EventSeatEntity.EventSeatStatus.BLOCKED) {
+                    throw new IllegalStateException("Seat is currently reserved and cannot be blocked.");
+                }
+
+                if (requestedStatus == EventSeatEntity.EventSeatStatus.BLOCKED
+                        || requestedStatus == EventSeatEntity.EventSeatStatus.AVAILABLE) {
+                    eventSeat.setStatus(requestedStatus);
+                }
+            }
+
             eventSeatRepo.save(eventSeat);
         }
 

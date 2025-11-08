@@ -61,6 +61,7 @@ public class EventSeatEntity {
     public enum EventSeatStatus {
         AVAILABLE,
         RESERVED, // Temporarily held (e.g., in a user's cart)
-        SOLD
+        SOLD,
+        BLOCKED // Admin pre-reserved / blocked from sale
     }
 }
