@@ -48,7 +48,8 @@ public class ReservationHoldEntity {
     )
     private List<EventSeatEntity> heldSeats;
 
-    @Column(name = "items_json", nullable = false)
+    @Lob
+    @Column(name = "items_json", nullable = false, columnDefinition = "text")
     private String itemsJson;
 
     @Column(name = "expires_at", nullable = false)
