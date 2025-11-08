@@ -3,6 +3,7 @@ package com.oshayer.event_manager.ticketing.service.impl;
 import com.oshayer.event_manager.events.entity.EventSeatEntity;
 import com.oshayer.event_manager.events.entity.EventSeatEntity.EventSeatStatus;
 import com.oshayer.event_manager.events.repository.EventSeatRepository;
+import com.oshayer.event_manager.events.repository.EventTicketTierRepository;
 import com.oshayer.event_manager.ticketing.dto.TicketCheckInRequest;
 import com.oshayer.event_manager.ticketing.dto.TicketCreateRequest;
 import com.oshayer.event_manager.ticketing.dto.TicketRefundRequest;
@@ -28,6 +29,7 @@ public class TicketServiceImpl implements TicketService {
 
     private final TicketRepository ticketRepository;
     private final EventSeatRepository eventSeatRepository;
+    private final EventTicketTierRepository eventTicketTierRepository;
     private final UserRepository userRepository;
 
     @Override
@@ -84,6 +86,7 @@ public class TicketServiceImpl implements TicketService {
         t.setIssuedAt(OffsetDateTime.now());
         // Mark the seat as permanently SOLD
         t.getEventSeat().setStatus(EventSeatStatus.SOLD);
+        adjustTierSoldCount(t.getEventSeat(), 1);
         return toResponse(t);
     }
 
@@ -116,6 +119,7 @@ public class TicketServiceImpl implements TicketService {
 
         // Business Decision: When a ticket is refunded, the seat should become available again.
         t.getEventSeat().setStatus(EventSeatStatus.AVAILABLE);
+        adjustTierSoldCount(t.getEventSeat(), -1);
 
         t.setStatus(TicketStatus.REFUNDED);
         t.setRefundAmount(req.getRefundAmount());
@@ -175,5 +179,22 @@ public class TicketServiceImpl implements TicketService {
                 .updatedAt(t.getUpdatedAt())
                 .build();
     }
-}
 
+    private void adjustTierSoldCount(EventSeatEntity seat, int delta) {
+        if (seat == null || delta == 0) {
+            return;
+        }
+
+        var event = seat.getEvent();
+        if (event == null) {
+            return;
+        }
+
+        eventTicketTierRepository.findByEventIdAndTierCode(event.getId(), seat.getTierCode())
+                .ifPresent(tier -> {
+                    int current = tier.getSoldQuantity() == null ? 0 : tier.getSoldQuantity();
+                    int updated = Math.max(0, current + delta);
+                    tier.setSoldQuantity(updated);
+                });
+    }
+}

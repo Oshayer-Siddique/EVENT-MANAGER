@@ -241,10 +241,30 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional(readOnly = true)
     public List<EventSeatResponse> listSeats(UUID id) {
-        eventRepo.findById(id)
+        var event = eventRepo.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Event not found: " + id));
 
-        return eventSeatRepo.findByEventId(id).stream()
+        List<EventSeatEntity> seats = eventSeatRepo.findByEventId(id);
+        if (seats.isEmpty()) {
+            SeatLayout layout = null;
+            if (event.getSeatLayoutId() != null) {
+                layout = seatLayoutRepo.findById(event.getSeatLayoutId())
+                        .orElse(null);
+            }
+
+            boolean isFreestyleLayout = layout == null
+                    || "220".equalsIgnoreCase(layout.getTypeCode())
+                    || (layout.getTypeName() != null && layout.getTypeName().equalsIgnoreCase("freestyle"));
+
+            if (isFreestyleLayout) {
+                List<EventTicketTier> tiers = eventTicketTierRepo.findByEventId(event.getId());
+                if (!tiers.isEmpty()) {
+                    seats = ensureGeneralAdmissionSeatInventory(event, tiers, layout);
+                }
+            }
+        }
+
+        return seats.stream()
                 .map(this::toSeatResponse)
                 .toList();
     }
@@ -312,11 +332,21 @@ public class EventServiceImpl implements EventService {
             throw new IllegalStateException("Cannot sync seats because event has no seat layout assigned.");
         }
 
-        seatLayoutRepo.findById(layoutId)
+        var layout = seatLayoutRepo.findById(layoutId)
                 .orElseThrow(() -> new IllegalArgumentException("Seat layout not found: " + layoutId));
+
+        var eventTiers = eventTicketTierRepo.findByEventId(id);
 
         var layoutSeats = seatRepository.findBySeatLayout_IdOrderByRowAscNumberAsc(layoutId);
         if (layoutSeats.isEmpty()) {
+            boolean freestyleLayout = "220".equalsIgnoreCase(layout.getTypeCode())
+                    || (layout.getTypeName() != null && layout.getTypeName().equalsIgnoreCase("freestyle"));
+            if (freestyleLayout) {
+                ensureGeneralAdmissionSeatInventory(event, eventTiers, layout);
+                return eventSeatRepo.findByEventId(id).stream()
+                        .map(this::toSeatResponse)
+                        .toList();
+            }
             throw new IllegalStateException("Seat layout has no seats defined. Create seats before syncing.");
         }
 
@@ -324,7 +354,6 @@ public class EventServiceImpl implements EventService {
         var existingBySeatId = existingSeats.stream()
                 .collect(Collectors.toMap(es -> es.getSeat().getId(), Function.identity()));
 
-        var eventTiers = eventTicketTierRepo.findByEventId(id);
         String tierCode = resolveTierCode(options.getTierCode(), eventTiers);
         BigDecimal price = resolvePrice(options.getPrice(), tierCode, eventTiers);
 
@@ -901,6 +930,83 @@ public class EventServiceImpl implements EventService {
                 .totalCapacity(layout.getTotalCapacity())
                 .active(layout.getIsActive())
                 .build();
+    }
+
+    private List<EventSeatEntity> ensureGeneralAdmissionSeatInventory(EventEntity event, List<EventTicketTier> tiers, SeatLayout existingLayout) {
+        if (tiers.isEmpty()) {
+            return List.of();
+        }
+
+        SeatLayout layout = existingLayout != null ? existingLayout : ensureGeneralAdmissionSeatLayout(event, tiers);
+        List<EventSeatEntity> generatedSeats = new ArrayList<>();
+
+        for (EventTicketTier tier : tiers) {
+            for (int i = 1; i <= tier.getTotalQuantity(); i++) {
+                String label = "%s-%03d".formatted(tier.getTierCode(), i);
+                if (seatRepository.existsBySeatLayout_IdAndLabel(layout.getId(), label)) {
+                    continue;
+                }
+
+                SeatEntity seatEntity = SeatEntity.builder()
+                        .seatLayout(layout)
+                        .row(tier.getTierCode())
+                        .number(i)
+                        .label(label)
+                        .type("GENERAL")
+                        .build();
+                seatEntity = seatRepository.save(seatEntity);
+
+                EventSeatEntity eventSeat = EventSeatEntity.builder()
+                        .event(event)
+                        .seat(seatEntity)
+                        .tierCode(tier.getTierCode())
+                        .price(tier.getPrice())
+                        .status(EventSeatEntity.EventSeatStatus.AVAILABLE)
+                        .build();
+                generatedSeats.add(eventSeat);
+            }
+        }
+
+        if (!generatedSeats.isEmpty()) {
+            eventSeatRepo.saveAll(generatedSeats);
+        }
+
+        return eventSeatRepo.findByEventId(event.getId());
+    }
+
+    private SeatLayout ensureGeneralAdmissionSeatLayout(EventEntity event, List<EventTicketTier> tiers) {
+        if (event.getSeatLayoutId() != null) {
+            return seatLayoutRepo.findById(event.getSeatLayoutId())
+                    .orElseThrow(() -> new IllegalArgumentException("Seat layout not found: " + event.getSeatLayoutId()));
+        }
+
+        EventVenue venue = venueRepo.findById(event.getVenueId())
+                .orElseThrow(() -> new IllegalArgumentException("Venue not found: " + event.getVenueId()));
+
+        String baseName = "Freestyle layout - " + event.getEventName();
+        String layoutName = baseName;
+        int suffix = 1;
+        while (seatLayoutRepo.existsByVenue_IdAndLayoutName(venue.getId(), layoutName)) {
+            layoutName = baseName + " (" + suffix++ + ")";
+        }
+
+        int capacity = tiers.stream().mapToInt(EventTicketTier::getTotalQuantity).sum();
+        SeatLayout layout = SeatLayout.builder()
+                .venue(venue)
+                .typeCode("220")
+                .typeName("Freestyle")
+                .layoutName(layoutName)
+                .totalRows(tiers.size())
+                .totalCols(capacity)
+                .standingCapacity(capacity)
+                .totalCapacity(capacity)
+                .isActive(true)
+                .build();
+
+        layout = seatLayoutRepo.save(layout);
+        event.setSeatLayoutId(layout.getId());
+        eventRepo.save(event);
+        return layout;
     }
 
     private void refreshVenueStats(UUID venueId) {

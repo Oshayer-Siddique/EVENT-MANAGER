@@ -9,4 +9,5 @@ import java.util.UUID;
 public interface EventTicketTierRepository extends JpaRepository<EventTicketTier, UUID> {
     List<EventTicketTier> findByEventId(UUID eventId);
     void deleteAllByEventId(UUID eventId);
+    java.util.Optional<EventTicketTier> findByEventIdAndTierCode(UUID eventId, String tierCode);
 }

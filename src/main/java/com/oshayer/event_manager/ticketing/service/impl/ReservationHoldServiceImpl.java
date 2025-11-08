@@ -1,9 +1,18 @@
 package com.oshayer.event_manager.ticketing.service.impl;
 
+import com.oshayer.event_manager.events.entity.EventEntity;
 import com.oshayer.event_manager.events.entity.EventSeatEntity;
 import com.oshayer.event_manager.events.entity.EventSeatEntity.EventSeatStatus;
+import com.oshayer.event_manager.events.entity.EventTicketTier;
 import com.oshayer.event_manager.events.repository.EventRepository;
 import com.oshayer.event_manager.events.repository.EventSeatRepository;
+import com.oshayer.event_manager.events.repository.EventTicketTierRepository;
+import com.oshayer.event_manager.seat.entity.SeatEntity;
+import com.oshayer.event_manager.seat.entity.SeatLayout;
+import com.oshayer.event_manager.seat.repository.SeatLayoutRepository;
+import com.oshayer.event_manager.seat.repository.SeatRepository;
+import com.oshayer.event_manager.venues.entity.EventVenue;
+import com.oshayer.event_manager.venues.repository.EventVenueRepository;
 import com.oshayer.event_manager.ticketing.dto.HoldConvertRequest;
 import com.oshayer.event_manager.ticketing.dto.HoldCreateRequest;
 import com.oshayer.event_manager.ticketing.dto.HoldReleaseRequest;
@@ -19,8 +28,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import org.springframework.data.domain.PageRequest;
+
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -32,6 +46,10 @@ public class ReservationHoldServiceImpl implements ReservationHoldService {
     private final ReservationHoldRepository holdRepo;
     private final EventSeatRepository eventSeatRepo;
     private final EventRepository eventRepo;
+    private final EventTicketTierRepository eventTicketTierRepository;
+    private final SeatRepository seatRepository;
+    private final SeatLayoutRepository seatLayoutRepository;
+    private final EventVenueRepository venueRepository;
     private final UserRepository userRepo;
 
     @Override
@@ -42,21 +60,19 @@ public class ReservationHoldServiceImpl implements ReservationHoldService {
         var event = eventRepo.findById(req.getEventId())
                 .orElseThrow(() -> new EntityNotFoundException("Event not found"));
 
-        List<EventSeatEntity> seatsToHold = new ArrayList<>();
-        for (UUID seatId : req.getSeatIds()) {
-            EventSeatEntity seat = eventSeatRepo.findByEventIdAndSeatId(req.getEventId(), seatId)
-                    .orElseThrow(() -> new EntityNotFoundException("Seat with ID " + seatId + " not found for this event"));
+        List<UUID> seatIds = req.getSeatIds() != null ? req.getSeatIds().stream().filter(Objects::nonNull).toList() : List.of();
+        List<HoldCreateRequest.TierSelection> tierSelections = req.getTierSelections() != null ? req.getTierSelections() : List.of();
 
-            if (seat.getStatus() != EventSeatStatus.AVAILABLE) {
-                throw new IllegalStateException("Seat " + seat.getSeat().getLabel() + " is not available.");
-            }
-            seatsToHold.add(seat);
+        if (seatIds.isEmpty() && tierSelections.isEmpty()) {
+            throw new IllegalArgumentException("Provide seatIds or tierSelections when creating a hold.");
+        }
+        if (!seatIds.isEmpty() && !tierSelections.isEmpty()) {
+            throw new IllegalArgumentException("Use either seatIds or tierSelections, not both.");
         }
 
-        // Mark all seats as RESERVED
-        for (EventSeatEntity seat : seatsToHold) {
-            seat.setStatus(EventSeatStatus.RESERVED);
-        }
+        List<EventSeatEntity> seatsToHold = !seatIds.isEmpty()
+                ? reserveExplicitSeats(event, seatIds)
+                : reserveGeneralAdmissionSeats(event, tierSelections);
 
         var holdBuilder = ReservationHoldEntity.builder()
                 .event(event)
@@ -126,6 +142,134 @@ public class ReservationHoldServiceImpl implements ReservationHoldService {
     }
 
     // -------- helper --------
+
+    private List<EventSeatEntity> reserveExplicitSeats(EventEntity event, List<UUID> seatIds) {
+        List<EventSeatEntity> seatsToHold = new ArrayList<>();
+        for (UUID seatId : seatIds) {
+            EventSeatEntity seat = eventSeatRepo.findByEventIdAndSeatId(event.getId(), seatId)
+                    .orElseThrow(() -> new EntityNotFoundException("Seat with ID " + seatId + " not found for this event"));
+
+            if (seat.getStatus() != EventSeatStatus.AVAILABLE) {
+                throw new IllegalStateException("Seat " + seat.getSeat().getLabel() + " is not available.");
+            }
+            seat.setStatus(EventSeatStatus.RESERVED);
+            seatsToHold.add(seat);
+        }
+        return seatsToHold;
+    }
+
+    private List<EventSeatEntity> reserveGeneralAdmissionSeats(EventEntity event, List<HoldCreateRequest.TierSelection> tierSelections) {
+        if (tierSelections.isEmpty()) {
+            throw new IllegalArgumentException("tierSelections must not be empty when seatIds are not provided.");
+        }
+
+        List<EventTicketTier> tiers = eventTicketTierRepository.findByEventId(event.getId());
+        if (tiers.isEmpty()) {
+            throw new IllegalStateException("Event has no ticket tiers configured.");
+        }
+
+        Map<String, EventTicketTier> tiersByCode = tiers.stream()
+                .collect(Collectors.toMap(EventTicketTier::getTierCode, t -> t, (a, b) -> a, LinkedHashMap::new));
+
+        SeatLayout layout = null;
+        List<EventSeatEntity> seatsToHold = new ArrayList<>();
+
+        for (HoldCreateRequest.TierSelection selection : tierSelections) {
+            String tierCode = selection.getTierCode();
+            EventTicketTier tier = tiersByCode.get(tierCode);
+            if (tier == null) {
+                throw new IllegalArgumentException("Tier code " + tierCode + " is not valid for this event.");
+            }
+            int quantity = selection.getQuantity();
+            if (quantity <= 0) {
+                throw new IllegalArgumentException("Quantity for tier " + tierCode + " must be positive.");
+            }
+
+            long sold = tier.getSoldQuantity() == null ? 0 : tier.getSoldQuantity();
+            long reserved = eventSeatRepo.countByEventAndTierAndStatuses(
+                    event.getId(), tierCode, List.of(EventSeatStatus.RESERVED, EventSeatStatus.BLOCKED));
+            long available = tier.getTotalQuantity() - sold - reserved;
+            if (available < quantity) {
+                throw new IllegalStateException("Only " + Math.max(available, 0) + " tickets remain for tier " + tierCode + ".");
+            }
+
+            List<EventSeatEntity> reusable = eventSeatRepo.findAvailableSeats(
+                    event.getId(), tierCode, EventSeatStatus.AVAILABLE, PageRequest.of(0, quantity));
+            reusable.forEach(seat -> seat.setStatus(EventSeatStatus.RESERVED));
+            if (!reusable.isEmpty()) {
+                eventSeatRepo.saveAll(reusable);
+            }
+            seatsToHold.addAll(reusable);
+
+            int remaining = quantity - reusable.size();
+            if (remaining > 0) {
+                if (layout == null) {
+                    layout = ensureGeneralAdmissionSeatLayout(event, tiers);
+                }
+                long existing = eventSeatRepo.countByEvent_IdAndTierCode(event.getId(), tierCode);
+                for (int i = 0; i < remaining; i++) {
+                    long index = existing + i + 1;
+                    String label = tierCode + "-GA-" + String.format("%04d", index);
+
+                    SeatEntity seatEntity = SeatEntity.builder()
+                            .seatLayout(layout)
+                            .row(tierCode)
+                            .number((int) index)
+                            .label(label)
+                            .type("GENERAL")
+                            .build();
+                    seatEntity = seatRepository.save(seatEntity);
+
+                    EventSeatEntity eventSeat = EventSeatEntity.builder()
+                            .event(event)
+                            .seat(seatEntity)
+                            .tierCode(tierCode)
+                            .price(tier.getPrice())
+                            .status(EventSeatStatus.RESERVED)
+                            .build();
+                    eventSeat = eventSeatRepo.save(eventSeat);
+                    seatsToHold.add(eventSeat);
+                }
+            }
+        }
+
+        return seatsToHold;
+    }
+
+    private SeatLayout ensureGeneralAdmissionSeatLayout(EventEntity event, List<EventTicketTier> tiers) {
+        if (event.getSeatLayoutId() != null) {
+            return seatLayoutRepository.findById(event.getSeatLayoutId())
+                    .orElseThrow(() -> new IllegalArgumentException("Seat layout not found: " + event.getSeatLayoutId()));
+        }
+
+        EventVenue venue = venueRepository.findById(event.getVenueId())
+                .orElseThrow(() -> new IllegalArgumentException("Venue not found: " + event.getVenueId()));
+
+        int capacity = tiers.stream().mapToInt(EventTicketTier::getTotalQuantity).sum();
+        String baseName = "Freestyle layout - " + event.getEventName();
+        String layoutName = baseName;
+        int suffix = 1;
+        while (seatLayoutRepository.existsByVenue_IdAndLayoutName(venue.getId(), layoutName)) {
+            layoutName = baseName + " (" + suffix++ + ")";
+        }
+
+        SeatLayout freestyleLayout = SeatLayout.builder()
+                .venue(venue)
+                .typeCode("220")
+                .typeName("Freestyle")
+                .layoutName(layoutName)
+                .totalRows(tiers.size())
+                .totalCols(capacity)
+                .standingCapacity(capacity)
+                .totalCapacity(capacity)
+                .isActive(true)
+                .build();
+
+        freestyleLayout = seatLayoutRepository.save(freestyleLayout);
+        event.setSeatLayoutId(freestyleLayout.getId());
+        eventRepo.save(event);
+        return freestyleLayout;
+    }
     private HoldResponse toResponse(ReservationHoldEntity h) {
         List<HoldResponse.HeldSeatInfo> heldSeatInfo = h.getHeldSeats().stream()
                 .map(es -> HoldResponse.HeldSeatInfo.builder()
