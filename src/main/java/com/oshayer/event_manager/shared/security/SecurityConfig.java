@@ -47,7 +47,8 @@ public class SecurityConfig {
                         "/api/auth/**",
                         "/api/business-organizations/**",
                         "/api/artists/**",
-                        "/api/sponsors/**"
+                        "/api/sponsors/**",
+                        "/api/payments/webhook"
                 )
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
