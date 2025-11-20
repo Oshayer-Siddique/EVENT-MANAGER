@@ -10,4 +10,6 @@ public interface SeatRepository extends JpaRepository<SeatEntity, UUID> {
     List<SeatEntity> findBySeatLayout_IdOrderByRowAscNumberAsc(UUID layoutId);
 
     boolean existsBySeatLayout_IdAndLabel(UUID layoutId, String label);
+
+    void deleteAllBySeatLayout_Id(UUID layoutId);
 }

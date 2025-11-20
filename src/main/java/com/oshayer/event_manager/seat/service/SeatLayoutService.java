@@ -1,5 +1,6 @@
 package com.oshayer.event_manager.seat.service;
 
+import com.oshayer.event_manager.seat.dto.BanquetLayoutDTO;
 import com.oshayer.event_manager.seat.dto.SeatLayoutDTO;
 
 import java.util.List;
@@ -13,4 +14,7 @@ public interface SeatLayoutService {
     SeatLayoutDTO updateSeatLayout(UUID venueId, UUID layoutId, SeatLayoutDTO dto);
     void deleteSeatLayout(UUID id);
     void deleteSeatLayout(UUID venueId, UUID layoutId);
+
+    BanquetLayoutDTO getBanquetLayout(UUID layoutId);
+    BanquetLayoutDTO updateBanquetLayout(UUID layoutId, BanquetLayoutDTO layoutDTO);
 }

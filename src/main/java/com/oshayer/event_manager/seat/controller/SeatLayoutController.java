@@ -1,5 +1,6 @@
 package com.oshayer.event_manager.seat.controller;
 
+import com.oshayer.event_manager.seat.dto.BanquetLayoutDTO;
 import com.oshayer.event_manager.seat.dto.SeatLayoutDTO;
 import com.oshayer.event_manager.seat.service.SeatLayoutService;
 import jakarta.validation.Valid;
@@ -69,5 +70,17 @@ public class SeatLayoutController {
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         seatLayoutService.deleteSeatLayout(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/seat-layouts/{id}/banquet")
+    public ResponseEntity<BanquetLayoutDTO> getBanquetLayout(@PathVariable UUID id) {
+        return ResponseEntity.ok(seatLayoutService.getBanquetLayout(id));
+    }
+
+    @PutMapping("/seat-layouts/{id}/banquet")
+    public ResponseEntity<BanquetLayoutDTO> updateBanquetLayout(
+            @PathVariable UUID id,
+            @RequestBody BanquetLayoutDTO layoutDTO) {
+        return ResponseEntity.ok(seatLayoutService.updateBanquetLayout(id, layoutDTO));
     }
 }

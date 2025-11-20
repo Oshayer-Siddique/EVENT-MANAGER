@@ -59,5 +59,6 @@ public class SeatLayout {
     @UpdateTimestamp
     private OffsetDateTime editedAt;
 
+    @Column(name = "data_digest", columnDefinition = "text")
     private String dataDigest;
 }
