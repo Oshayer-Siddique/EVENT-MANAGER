@@ -16,9 +16,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -205,10 +207,12 @@ public class SeatLayoutServiceImpl implements SeatLayoutService {
             return;
         }
 
+        Set<String> usedRowLabels = new HashSet<>();
         List<SeatEntity> seats = new ArrayList<>();
         int tableIndex = 0;
         for (BanquetLayoutDTO.BanquetTableDTO table : layoutDTO.getTables()) {
-            String rowLabel = sanitizeRowLabel(table.getLabel(), tableIndex);
+            String sanitizedLabel = sanitizeRowLabel(table.getLabel(), tableIndex);
+            String rowLabel = ensureUniqueRowLabel(sanitizedLabel, usedRowLabels);
             List<BanquetLayoutDTO.BanquetChairDTO> chairs = normalizeChairs(table);
             int number = 1;
             for (BanquetLayoutDTO.BanquetChairDTO ignored : chairs) {
@@ -253,5 +257,19 @@ public class SeatLayoutServiceImpl implements SeatLayoutService {
     private String sanitizeRowLabel(String label, int index) {
         String base = (label == null || label.isBlank()) ? "TABLE" + (index + 1) : label;
         return base.trim().toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "");
+    }
+
+    private String ensureUniqueRowLabel(String sanitizedLabel, Set<String> usedRowLabels) {
+        if (sanitizedLabel == null || sanitizedLabel.isBlank()) {
+            sanitizedLabel = "TABLE";
+        }
+        String candidate = sanitizedLabel;
+        int suffix = 2;
+        while (usedRowLabels.contains(candidate)) {
+            candidate = sanitizedLabel + suffix;
+            suffix++;
+        }
+        usedRowLabels.add(candidate);
+        return candidate;
     }
 }
