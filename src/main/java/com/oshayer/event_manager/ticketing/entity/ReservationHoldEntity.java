@@ -48,7 +48,7 @@ public class ReservationHoldEntity {
     )
     private List<EventSeatEntity> heldSeats;
 
-    @Lob
+    // Store JSON as regular text so Postgres returns it via getString rather than CLOB/OID
     @Column(name = "items_json", nullable = false, columnDefinition = "text")
     private String itemsJson;
 
