@@ -1,6 +1,7 @@
 package com.oshayer.event_manager.seat.service;
 
 import com.oshayer.event_manager.seat.dto.BanquetLayoutDTO;
+import com.oshayer.event_manager.seat.dto.HybridLayoutDTO;
 import com.oshayer.event_manager.seat.dto.SeatLayoutDTO;
 
 import java.util.List;
@@ -17,4 +18,7 @@ public interface SeatLayoutService {
 
     BanquetLayoutDTO getBanquetLayout(UUID layoutId);
     BanquetLayoutDTO updateBanquetLayout(UUID layoutId, BanquetLayoutDTO layoutDTO);
+
+    HybridLayoutDTO getHybridLayout(UUID layoutId);
+    HybridLayoutDTO updateHybridLayout(UUID layoutId, HybridLayoutDTO layoutDTO);
 }

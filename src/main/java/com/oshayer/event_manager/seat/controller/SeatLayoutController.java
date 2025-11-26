@@ -1,6 +1,7 @@
 package com.oshayer.event_manager.seat.controller;
 
 import com.oshayer.event_manager.seat.dto.BanquetLayoutDTO;
+import com.oshayer.event_manager.seat.dto.HybridLayoutDTO;
 import com.oshayer.event_manager.seat.dto.SeatLayoutDTO;
 import com.oshayer.event_manager.seat.service.SeatLayoutService;
 import jakarta.validation.Valid;
@@ -82,5 +83,17 @@ public class SeatLayoutController {
             @PathVariable UUID id,
             @RequestBody BanquetLayoutDTO layoutDTO) {
         return ResponseEntity.ok(seatLayoutService.updateBanquetLayout(id, layoutDTO));
+    }
+
+    @GetMapping("/seat-layouts/{id}/hybrid")
+    public ResponseEntity<HybridLayoutDTO> getHybridLayout(@PathVariable UUID id) {
+        return ResponseEntity.ok(seatLayoutService.getHybridLayout(id));
+    }
+
+    @PutMapping("/seat-layouts/{id}/hybrid")
+    public ResponseEntity<HybridLayoutDTO> updateHybridLayout(
+            @PathVariable UUID id,
+            @RequestBody HybridLayoutDTO layoutDTO) {
+        return ResponseEntity.ok(seatLayoutService.updateHybridLayout(id, layoutDTO));
     }
 }
