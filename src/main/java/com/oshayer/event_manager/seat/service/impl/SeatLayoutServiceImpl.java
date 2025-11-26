@@ -1,6 +1,7 @@
 package com.oshayer.event_manager.seat.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oshayer.event_manager.seat.dto.BanquetLayoutDTO;
 import com.oshayer.event_manager.seat.dto.SeatLayoutDTO;
@@ -55,6 +56,7 @@ public class SeatLayoutServiceImpl implements SeatLayoutService {
                 .standingCapacity(dto.getStandingCapacity())
                 .totalCapacity(dto.getTotalCapacity())
                 .isActive(dto.getIsActive() != null ? dto.getIsActive() : Boolean.TRUE)
+                .layoutConfiguration(serializeConfiguration(dto.getConfiguration()))
                 .build();
 
         SeatLayout saved = seatLayoutRepository.save(layout);
@@ -159,6 +161,7 @@ public class SeatLayoutServiceImpl implements SeatLayoutService {
         layout.setStandingCapacity(dto.getStandingCapacity());
         layout.setTotalCapacity(dto.getTotalCapacity());
         layout.setIsActive(dto.getIsActive());
+        layout.setLayoutConfiguration(serializeConfiguration(dto.getConfiguration()));
 
         return toDTO(seatLayoutRepository.save(layout));
     }
@@ -177,6 +180,7 @@ public class SeatLayoutServiceImpl implements SeatLayoutService {
                 .standingCapacity(layout.getStandingCapacity())
                 .totalCapacity(layout.getTotalCapacity())
                 .isActive(layout.getIsActive())
+                .configuration(parseConfiguration(layout.getLayoutConfiguration()))
                 .build();
     }
 
@@ -196,6 +200,28 @@ public class SeatLayoutServiceImpl implements SeatLayoutService {
             return objectMapper.writeValueAsString(layout);
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("Failed to serialize banquet layout", ex);
+        }
+    }
+
+    private JsonNode parseConfiguration(String configurationJson) {
+        if (configurationJson == null || configurationJson.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readTree(configurationJson);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Failed to parse layout configuration", ex);
+        }
+    }
+
+    private String serializeConfiguration(JsonNode configuration) {
+        if (configuration == null || configuration.isNull()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(configuration);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Failed to serialize layout configuration", ex);
         }
     }
 

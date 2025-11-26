@@ -64,6 +64,10 @@ public class SeatLayout {
     @Column(name = "data_digest", columnDefinition = "text")
     private String dataDigest;
 
+    @Lob
+    @Column(name = "layout_configuration", columnDefinition = "text")
+    private String layoutConfiguration;
+
     @OneToMany(mappedBy = "seatLayout", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     @ToString.Exclude

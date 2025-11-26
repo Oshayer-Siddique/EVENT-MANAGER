@@ -1,5 +1,6 @@
 package com.oshayer.event_manager.seat.dto;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.constraints.*;
 import lombok.*;
 import java.util.UUID;
@@ -27,5 +28,6 @@ public class SeatLayoutDTO {
 
     @NotNull @PositiveOrZero private Integer totalCapacity;
     @NotNull private Boolean isActive;
-}
 
+    private JsonNode configuration;
+}
