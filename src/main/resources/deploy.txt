@@ -1,0 +1,67 @@
+============================
+1️⃣  APIGATEWAY_EVENT_MANAGEMENT
+============================
+
+cd ~/cts_projects/ticketing/APIGATEWAY_EVENT_MANAGEMENT/Apigateway
+git pull
+cat src/main/resources/application.yml   # verify uri: http://192.168.100.201:5000
+docker stop apigateway-app
+docker rm apigateway-app
+docker build -t apigateway-app .
+docker run -d --restart unless-stopped -p 5010:5010 --name apigateway-app apigateway-app
+
+
+docker run -d \
+  -p 5010:5010 \
+  --restart unless-stopped \
+  --name apigateway-app \
+  --env-file .env \
+  apigateway-app
+============================
+2️⃣   EVENT-MANAGER Backend
+============================
+cd ~/cts_projects/ticketing/EVENT-MANAGER
+docker stop event-manager-app
+docker rm event-manager-app
+git pull
+cat src/main/resources/application.properties  # verify spring.datasource.url=jdbc:postgresql://192.168.100.201:5432/event_manager, and DB name and password
+docker build -t event-manager-backend-app .
+-- docker run -d --restart unless-stopped -p 5000:5000 --name event-manager-backend-app event-manager-backend-app
+
+docker run -d \
+  -p 5000:5000 \
+  --restart unless-stopped \
+  --name event-manager-backend-app \
+  --env-file .env \
+  event-manager-backend-app
+
+============================
+3️⃣   EVENT-MANAGER-FRONTEND
+============================
+cd ~/cts_projects/ticketing/EVENT-MANAGER-FRONTEND
+docker stop event-manager-frontend
+docker rm event-manager-frontend
+git pull
+cat src/services/apiClient.ts  # verify const baseUrl = "https://events.ctrends-software.com/api_gateway/api"
+docker build -t event-manager-frontend .
+docker run -d --restart unless-stopped -p 3000:3000 --name event-manager-frontend event-manager-frontend
+
+
+-- oshayer.iut.cse@gmail.com
+-- 12345678
+-- =============================
+
+-- FROM node:18-alpine
+
+-- WORKDIR /app
+
+-- COPY package.json package-lock.json ./
+-- RUN npm install
+
+-- COPY . .
+
+-- EXPOSE 3000
+
+-- CMD ["npm", "run", "dev"]
+-- root@cts:~/cts_projects/ticketing/EVENT-MANAGER-FRONTEND#
+-- https://events.ctrends-software.com/api_gateway/api
