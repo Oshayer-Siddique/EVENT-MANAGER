@@ -67,10 +67,17 @@ public class StripePaymentService implements PaymentService {
                 .build();
         payment = paymentRepository.save(payment);
 
+        BigDecimal subtotalAmount = hold.getSubtotalAmount() != null ? hold.getSubtotalAmount() : calculateSeatTotal(hold);
+        BigDecimal discountAmount = hold.getDiscountAmount() != null ? hold.getDiscountAmount() : BigDecimal.ZERO;
+        BigDecimal totalAmount = hold.getTotalAmount() != null ? hold.getTotalAmount() : subtotalAmount.subtract(discountAmount).max(BigDecimal.ZERO);
+
         Map<String, String> metadata = new HashMap<>();
         metadata.put("paymentId", payment.getId().toString());
         metadata.put("holdId", hold.getId().toString());
         metadata.put("eventId", hold.getEvent().getId().toString());
+        metadata.put("subtotalAmount", subtotalAmount.toPlainString());
+        metadata.put("discountAmount", discountAmount.toPlainString());
+        metadata.put("totalAmount", totalAmount.toPlainString());
 
         PaymentIntentCreateParams.Builder paramsBuilder = PaymentIntentCreateParams.builder()
                 .setAmount(amountCents)
@@ -182,7 +189,15 @@ public class StripePaymentService implements PaymentService {
     }
 
     private long calculateHoldAmountCents(ReservationHoldEntity hold) {
-        BigDecimal total = hold.getHeldSeats().stream()
+        BigDecimal orderTotal = hold.getTotalAmount();
+        if (orderTotal == null || orderTotal.compareTo(BigDecimal.ZERO) <= 0) {
+            orderTotal = calculateSeatTotal(hold);
+        }
+        return orderTotal.movePointRight(2).longValueExact();
+    }
+
+    private BigDecimal calculateSeatTotal(ReservationHoldEntity hold) {
+        return hold.getHeldSeats().stream()
                 .map(seat -> {
                     if (seat.getPrice() == null) {
                         throw new IllegalStateException("Seat price missing for seat " + seat.getId());
@@ -190,7 +205,6 @@ public class StripePaymentService implements PaymentService {
                     return seat.getPrice();
                 })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return total.movePointRight(2).longValueExact();
     }
 
     private PaymentStatus mapStripeStatus(String stripeStatus) {

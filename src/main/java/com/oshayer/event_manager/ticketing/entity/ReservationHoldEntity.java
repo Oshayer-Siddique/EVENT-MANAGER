@@ -2,13 +2,16 @@ package com.oshayer.event_manager.ticketing.entity;
 
 import com.oshayer.event_manager.events.entity.EventEntity;
 import com.oshayer.event_manager.events.entity.EventSeatEntity;
+import com.oshayer.event_manager.ticketing.entity.ReservationHoldDiscountEntity;
 import com.oshayer.event_manager.users.entity.UserEntity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -51,6 +54,19 @@ public class ReservationHoldEntity {
     // Store JSON as regular text so Postgres returns it via getString rather than CLOB/OID
     @Column(name = "items_json", nullable = false, columnDefinition = "text")
     private String itemsJson;
+
+    @Builder.Default
+    @OneToMany(mappedBy = "hold", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ReservationHoldDiscountEntity> appliedDiscounts = new ArrayList<>();
+
+    @Column(name = "subtotal_amount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal subtotalAmount = BigDecimal.ZERO;
+
+    @Column(name = "discount_amount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal discountAmount = BigDecimal.ZERO;
+
+    @Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal totalAmount = BigDecimal.ZERO;
 
     @Column(name = "expires_at", nullable = false)
     private OffsetDateTime expiresAt;

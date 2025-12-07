@@ -1,5 +1,10 @@
 package com.oshayer.event_manager.ticketing.service.impl;
 
+import com.oshayer.event_manager.discounts.dto.DiscountCalculationRequest;
+import com.oshayer.event_manager.discounts.dto.DiscountCalculationResult;
+import com.oshayer.event_manager.discounts.dto.DiscountLineItem;
+import com.oshayer.event_manager.discounts.dto.DiscountValidationResponseItem;
+import com.oshayer.event_manager.discounts.service.DiscountService;
 import com.oshayer.event_manager.events.entity.EventEntity;
 import com.oshayer.event_manager.events.entity.EventSeatEntity;
 import com.oshayer.event_manager.events.entity.EventSeatEntity.EventSeatStatus;
@@ -17,6 +22,7 @@ import com.oshayer.event_manager.ticketing.dto.HoldConvertRequest;
 import com.oshayer.event_manager.ticketing.dto.HoldCreateRequest;
 import com.oshayer.event_manager.ticketing.dto.HoldReleaseRequest;
 import com.oshayer.event_manager.ticketing.dto.HoldResponse;
+import com.oshayer.event_manager.ticketing.entity.ReservationHoldDiscountEntity;
 import com.oshayer.event_manager.ticketing.entity.ReservationHoldEntity;
 import com.oshayer.event_manager.ticketing.entity.ReservationHoldEntity.HoldStatus;
 import com.oshayer.event_manager.ticketing.repository.ReservationHoldRepository;
@@ -27,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import org.springframework.data.domain.PageRequest;
 
@@ -51,11 +58,16 @@ public class ReservationHoldServiceImpl implements ReservationHoldService {
     private final SeatLayoutRepository seatLayoutRepository;
     private final EventVenueRepository venueRepository;
     private final UserRepository userRepo;
+    private final DiscountService discountService;
 
     @Override
     public HoldResponse create(HoldCreateRequest req) {
         if (req.getExpiresAt().isBefore(OffsetDateTime.now()))
             throw new IllegalArgumentException("expiresAt must be in the future");
+
+        if (req.getBuyerId() == null && req.getDiscountCode() != null && !req.getDiscountCode().isBlank()) {
+            throw new IllegalStateException("You must be signed in to redeem discount codes.");
+        }
 
         var event = eventRepo.findById(req.getEventId())
                 .orElseThrow(() -> new EntityNotFoundException("Event not found"));
@@ -74,12 +86,24 @@ public class ReservationHoldServiceImpl implements ReservationHoldService {
                 ? reserveExplicitSeats(event, seatIds)
                 : reserveGeneralAdmissionSeats(event, tierSelections);
 
+        DiscountCalculationResult discountResult = discountService.calculateForHold(
+                DiscountCalculationRequest.builder()
+                        .eventId(event.getId())
+                        .buyerId(req.getBuyerId())
+                        .discountCode(req.getDiscountCode())
+                        .includeAutomaticDiscounts(true)
+                        .items(buildLineItems(seatsToHold))
+                        .build());
+
         var holdBuilder = ReservationHoldEntity.builder()
                 .event(event)
                 .status(HoldStatus.ACTIVE)
                 .heldSeats(seatsToHold)
                 .itemsJson(buildItemsJson(seatsToHold))
-                .expiresAt(req.getExpiresAt());
+                .expiresAt(req.getExpiresAt())
+                .subtotalAmount(discountResult.getSubtotal())
+                .discountAmount(discountResult.getDiscountTotal())
+                .totalAmount(discountResult.getTotalDue());
 
         if (req.getBuyerId() != null) {
             var buyer = userRepo.findById(req.getBuyerId())
@@ -87,7 +111,10 @@ public class ReservationHoldServiceImpl implements ReservationHoldService {
             holdBuilder.buyer(buyer);
         }
 
-        ReservationHoldEntity h = holdRepo.save(holdBuilder.build());
+        ReservationHoldEntity hold = holdBuilder.build();
+        hold.setAppliedDiscounts(mapAppliedDiscounts(hold, discountResult));
+
+        ReservationHoldEntity h = holdRepo.save(hold);
         return toResponse(h);
     }
 
@@ -123,6 +150,7 @@ public class ReservationHoldServiceImpl implements ReservationHoldService {
 
         h.setStatus(HoldStatus.CONVERTED);
         h.setFinalizedPaymentId(req.getPaymentId());
+        discountService.recordRedemptionForHold(h);
         // Note: The seats remain RESERVED. They will be marked as SOLD when the actual ticket is issued.
         return toResponse(h);
     }
@@ -289,6 +317,10 @@ public class ReservationHoldServiceImpl implements ReservationHoldService {
                 .finalizedPaymentId(h.getFinalizedPaymentId())
                 .createdAt(h.getCreatedAt())
                 .updatedAt(h.getUpdatedAt())
+                .subtotalAmount(h.getSubtotalAmount())
+                .discountAmount(h.getDiscountAmount())
+                .totalAmount(h.getTotalAmount())
+                .appliedDiscounts(mapAppliedDiscounts(h))
                 .build();
     }
 
@@ -297,7 +329,8 @@ public class ReservationHoldServiceImpl implements ReservationHoldService {
                 .map(es -> "{" +
                         "\"seatId\":\"" + es.getId() + "\"," +
                         "\"seatLabel\":\"" + escapeJson(es.getSeat().getLabel()) + "\"," +
-                        "\"tierCode\":\"" + escapeJson(es.getTierCode()) + "\"" +
+                        "\"tierCode\":\"" + escapeJson(es.getTierCode()) + "\"," +
+                        "\"price\":\"" + (es.getPrice() != null ? es.getPrice() : BigDecimal.ZERO) + "\"" +
                         "}")
                 .collect(Collectors.joining(",", "[", "]"));
     }
@@ -305,5 +338,61 @@ public class ReservationHoldServiceImpl implements ReservationHoldService {
     private String escapeJson(String value) {
         if (value == null) return "";
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private List<DiscountLineItem> buildLineItems(List<EventSeatEntity> seats) {
+        return seats.stream().map(seat -> {
+            if (seat.getPrice() == null) {
+                throw new IllegalStateException("Seat " + seat.getId() + " is missing a price");
+            }
+            return DiscountLineItem.builder()
+                    .seatId(seat.getId())
+                    .tierCode(seat.getTierCode())
+                    .quantity(1)
+                    .unitPrice(seat.getPrice())
+                    .build();
+        }).collect(Collectors.toList());
+    }
+
+    private List<ReservationHoldDiscountEntity> mapAppliedDiscounts(ReservationHoldEntity hold,
+                                                                    DiscountCalculationResult result) {
+        if (result.getAppliedDiscountEntities() == null || result.getAppliedDiscountEntities().isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<ReservationHoldDiscountEntity> applied = new ArrayList<>();
+        List<DiscountValidationResponseItem> summaries = result.getAppliedDiscounts();
+
+        for (int i = 0; i < result.getAppliedDiscountEntities().size(); i++) {
+            var discount = result.getAppliedDiscountEntities().get(i);
+            var summary = summaries.get(i);
+            applied.add(ReservationHoldDiscountEntity.builder()
+                    .hold(hold)
+                    .discount(discount)
+                    .discountCode(summary.getCode())
+                    .amount(summary.getAmount())
+                    .autoApplied(summary.isAutoApplied())
+                    .stackRank(i)
+                    .build());
+        }
+        return applied;
+    }
+
+    private List<HoldResponse.AppliedDiscountInfo> mapAppliedDiscounts(ReservationHoldEntity hold) {
+        if (hold.getAppliedDiscounts() == null) {
+            return List.of();
+        }
+        return hold.getAppliedDiscounts().stream()
+                .sorted((a, b) -> Integer.compare(
+                        a.getStackRank() != null ? a.getStackRank() : Integer.MAX_VALUE,
+                        b.getStackRank() != null ? b.getStackRank() : Integer.MAX_VALUE))
+                .map(applied -> HoldResponse.AppliedDiscountInfo.builder()
+                        .discountId(applied.getDiscount().getId())
+                        .code(applied.getDiscountCode())
+                        .name(applied.getDiscount().getName())
+                        .amount(applied.getAmount())
+                        .autoApplied(applied.isAutoApplied())
+                        .build())
+                .collect(Collectors.toList());
     }
 }
